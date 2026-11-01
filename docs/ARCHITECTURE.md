@@ -108,3 +108,10 @@ Lo schema è SQL portabile. Passi:
 ## White-label / duplicazione per cliente
 
 Ogni installazione ha: proprio database, proprio `master.key`, proprio dominio, proprio branding (globale o per utente). Il codice non contiene segreti: le chiavi arrivano da env. Duplicare = nuovo deploy + nuove credenziali, non copia del database.
+
+
+## Worker server headless
+
+`npm run worker` avvia `scripts/worker.ts` solo se `GM_WORKER_ENABLED=true`. Il processo esegue scansioni globali con dati pubblici, una alla volta, attende l'intervallo dopo il completamento e registra log strutturati. `GM_WORKER_INTERVAL_MS` è limitato tra 30 secondi e 1 ora (default 60 secondi). Arresto ordinato su `SIGINT`/`SIGTERM`.
+
+Il worker è un processo separato ma usa lo stesso SQLite dell'app: `GM_DB_PATH` o `GM_DATA_DIR` devono puntare a un volume persistente condiviso correttamente tra web e worker sullo stesso host. Avviare una sola replica: non è ancora presente un lock distribuito/lease per impedire scansioni concorrenti tra più istanze. SQLite WAL non va collocato su storage di rete non compatibile. Serverless o filesystem effimeri non sono supportati per questo worker. Non include scheduler dell'hosting, push, alert in background o supervisione esterna; l'effettiva disponibilità 24/7 dipende da deploy, volume persistente e process manager.
