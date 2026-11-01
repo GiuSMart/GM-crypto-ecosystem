@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
     "scan": "tsx scripts/scan.ts",
-    "db:info": "tsx scripts/db-info.ts"
+    "db:info": "tsx scripts/db-info.ts",
+    "worker": "tsx scripts/worker.ts"
   },
   "dependencies": {
     "next": "16.4.3",
