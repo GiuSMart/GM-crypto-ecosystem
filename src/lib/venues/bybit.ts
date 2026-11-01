@@ -10,7 +10,7 @@ import { toLevels, type Ticker, type VenueAdapter } from "./types";
  * Override only with an explicitly supported HTTPS host.
  */
 const BASE = process.env.BYBIT_API_BASE?.trim() || "https://api.bybit.eu";
-const ALLOWED_HOSTS = new Set(["api.bybit.eu", "api.bybit.com", "api.bytick.com", "api-testnet.bybit.com"]);
+const ALLOWED_HOSTS = new Set(["api.bybit.eu", "api.bytick.eu", "api-testnet.bybit.eu", "api.bybit.com", "api.bytick.com", "api-testnet.bybit.com"]);
 const parsedBase = new URL(BASE);
 if (parsedBase.protocol !== "https:" || !ALLOWED_HOSTS.has(parsedBase.hostname) || parsedBase.pathname !== "/") {
   throw new Error("BYBIT_API_BASE must be an approved HTTPS Bybit API host.");
