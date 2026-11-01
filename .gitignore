@@ -1,0 +1,18 @@
+node_modules/
+.next/
+out/
+build/
+*.log
+
+# Local runtime data: SQLite database, master encryption key, generated secrets.
+data/
+!data/.gitkeep
+
+# Never commit credentials or keys.
+.env
+.env.*
+!.env.example
+
+.DS_Store
+*.tsbuildinfo
+next-env.d.ts
