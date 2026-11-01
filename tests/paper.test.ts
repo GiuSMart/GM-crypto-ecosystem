@@ -57,3 +57,30 @@ test("paper analytics handle no trades and no losing trades without Infinity val
   assert.equal(allWins.averageWin, 3);
   assert.equal(allWins.averageLoss, null);
 });
+
+
+import { comparePaperExpectedToRealized } from "../src/lib/engine/paper-analytics";
+
+test("paper comparison measures realized result against opening estimates", () => {
+  const result = comparePaperExpectedToRealized([
+    { expectedProfit: 12, realizedProfit: 9 },
+    { expectedProfit: 8, realizedProfit: 10 },
+  ]);
+
+  assert.equal(result.expectedTotal, 20);
+  assert.equal(result.realizedTotal, 19);
+  assert.equal(result.delta, -1);
+  assert.equal(result.realizationPct, 95);
+});
+
+test("paper comparison ignores non-finite rows and avoids invalid realization ratios", () => {
+  const result = comparePaperExpectedToRealized([
+    { expectedProfit: 0, realizedProfit: 3 },
+    { expectedProfit: Number.NaN, realizedProfit: 4 },
+  ]);
+
+  assert.equal(result.expectedTotal, 0);
+  assert.equal(result.realizedTotal, 3);
+  assert.equal(result.delta, 3);
+  assert.equal(result.realizationPct, null);
+});
