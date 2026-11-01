@@ -93,7 +93,7 @@ export default async function OverviewPage() {
         />
       </div>
 
-      <MonitorRunner enabled={settings.monitoringEnabled} intervalMs={monitorIntervalMs} />
+      <MonitorRunner enabled={settings.monitoringEnabled} intervalMs={monitorIntervalMs} userId={user.id} />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <Stat
