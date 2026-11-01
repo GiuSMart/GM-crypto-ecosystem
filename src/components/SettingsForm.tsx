@@ -87,6 +87,7 @@ export default function SettingsForm({
             <select className="gm-input" value={form.quote} onChange={(e) => set("quote", e.target.value as EngineSettings["quote"])}>
               <option value="USD">USD</option>
               <option value="EUR">EUR</option>
+              <option value="USDT">USDT (Tether)</option>
             </select>
           </Field>
           <Field label="Modalità trasferimento" hint="Prefunded: inventario su entrambe le venue.">
