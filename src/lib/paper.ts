@@ -2,6 +2,7 @@ import { newId } from "./crypto";
 import { all, getUserSettings, one, run } from "./db";
 import { evaluateOpportunity, walkBids } from "./engine/arbitrage";
 import { calculatePaperRealizedProfit } from "./engine/paper";
+import { calculatePaperPerformance } from "./engine/paper-analytics";
 import { resolveFee } from "./engine/fees";
 import { audit } from "./audit";
 import { buildCostModel, getBook, opportunityById } from "./market";
@@ -166,6 +167,11 @@ export type PaperStats = {
   winRate: number | null;
   avgRealizedMarginPct: number | null;
   openExpectedTotal: number;
+  profitFactor: number | null;
+  averageWin: number | null;
+  averageLoss: number | null;
+  bestTrade: number | null;
+  worstTrade: number | null;
 };
 
 export function paperStats(userId: string): PaperStats {
@@ -173,16 +179,13 @@ export function paperStats(userId: string): PaperStats {
   const open = rows.filter((r) => r.status === "open");
   const closed = rows.filter((r) => r.status === "closed");
   const realizedTotal = closed.reduce((s, r) => s + (r.realized_profit ?? 0), 0);
-  const wins = closed.filter((r) => (r.realized_profit ?? 0) > 0).length;
-  const losses = closed.filter((r) => (r.realized_profit ?? 0) <= 0).length;
+  const performance = calculatePaperPerformance(closed.map((r) => r.realized_profit ?? 0));
   return {
     openCount: open.length,
     closedCount: closed.length,
     expectedTotal: open.reduce((s, r) => s + r.expected_profit, 0),
     realizedTotal,
-    wins,
-    losses,
-    winRate: closed.length ? (wins / closed.length) * 100 : null,
+    ...performance,
     avgRealizedMarginPct: closed.length
       ? closed.reduce((s, r) => s + (r.realized_margin_pct ?? 0), 0) / closed.length
       : null,

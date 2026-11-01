@@ -43,6 +43,25 @@ export default async function PaperPage() {
         <Stat label="Win rate" value={stats.winRate === null ? "—" : `${num(stats.winRate, 1)}%`} tone={stats.winRate && stats.winRate > 50 ? "pos" : "neutral"} sub={`margine medio ${stats.avgRealizedMarginPct === null ? "—" : pct(stats.avgRealizedMarginPct)}`} />
       </div>
 
+      <section className="space-y-2">
+        <div className="text-[11px] uppercase tracking-[0.16em] text-muted">Qualità delle simulazioni chiuse</div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <Stat
+            label="Profit factor"
+            value={stats.profitFactor === null ? (stats.wins > 0 ? "∞" : "—") : num(stats.profitFactor, 2)}
+            sub="profitti lordi / perdite lorde"
+            tone={stats.profitFactor !== null && stats.profitFactor >= 1 ? "pos" : "neutral"}
+          />
+          <Stat label="Vincita media" value={stats.averageWin === null ? "—" : money(stats.averageWin)} tone="pos" sub="solo trade positivi" />
+          <Stat label="Perdita media" value={stats.averageLoss === null ? "—" : money(stats.averageLoss)} tone="neg" sub="solo trade negativi" />
+          <Stat label="Miglior trade" value={stats.bestTrade === null ? "—" : money(stats.bestTrade)} tone={stats.bestTrade !== null && stats.bestTrade > 0 ? "pos" : "neutral"} sub="risultato netto" />
+          <Stat label="Peggior trade" value={stats.worstTrade === null ? "—" : money(stats.worstTrade)} tone={stats.worstTrade !== null && stats.worstTrade < 0 ? "neg" : "neutral"} sub="risultato netto" />
+        </div>
+        <p className="text-[10px] leading-relaxed text-muted">
+          Il profit factor confronta la somma dei risultati positivi con il valore assoluto delle perdite. Se non esistono perdite, viene mostrato ∞ quando ci sono vincite.
+        </p>
+      </section>
+
       <Card className="overflow-hidden">
         <CardHead title="Posizioni aperte" subtitle="La chiusura marca l'uscita al mercato corrente" icon={<Icon name="layers" size={17} />} action={<Badge tone="gold">{open.length}</Badge>} />
         {open.length ? (
