@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { OpenPaperButton, ScanButton } from "@/components/ActionButtons";
 import MarketLive from "@/components/MarketLive";
+import MonitorRunner from "@/components/MonitorRunner";
 import { Icon } from "@/components/icons";
 import { AreaChart, Badge, Callout, Card, CardHead, Empty, KV, Stat, cn } from "@/components/ui";
 import { VENUE_MAP, type Quote } from "@/lib/config";
@@ -10,12 +11,15 @@ import { ago, money, num, pct } from "@/lib/format";
 import { getBoard, latestOpportunities, latestScan, marginSeries, parsePayload, type Board } from "@/lib/market";
 import { activeLiveAuthorization, liveBlockers } from "@/lib/live";
 import { paperStats } from "@/lib/paper";
+import { planLimits } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
 
 export default async function OverviewPage() {
   const user = await requireUser();
   const settings = getUserSettings(user.id);
+  const limits = planLimits(user.plan);
+  const monitorIntervalMs = Math.max(60_000, Math.ceil(3_600_000 / Math.max(1, limits.scansPerHour)));
   const quote = settings.quote as Quote;
 
   let board: Board = { quote, ts: 0, rows: [], errors: [] };
@@ -70,7 +74,7 @@ export default async function OverviewPage() {
         <ModeCard
           title="A · Monitoraggio"
           active={settings.monitoringEnabled}
-          body={settings.monitoringEnabled ? "Osservazione continua dei mercati attiva." : "Monitoraggio in pausa dalle impostazioni."}
+          body={settings.monitoringEnabled ? `Scansioni automatiche ogni ${Math.round(monitorIntervalMs / 1000)}s quando la dashboard è aperta.` : "Monitoraggio in pausa dalle impostazioni."}
         />
         <ModeCard title="B · Paper trading" active body={`Simulazione senza denaro reale · ${paper.openCount} aperte`} />
         <ModeCard
@@ -81,7 +85,9 @@ export default async function OverviewPage() {
         />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <MonitorRunner enabled={settings.monitoringEnabled} intervalMs={monitorIntervalMs} />
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <Stat
           label="Miglior margine netto"
           value={bestSignal ? pct(bestSignal.margin_pct) : "—"}
@@ -105,6 +111,18 @@ export default async function OverviewPage() {
           value={money(paper.realizedTotal)}
           tone={paper.realizedTotal > 0 ? "pos" : paper.realizedTotal < 0 ? "neg" : "neutral"}
           sub={`${paper.closedCount} chiuse · ${paper.openCount} aperte`}
+        />
+        <Stat
+          label="Profitto previsto (chiuse)"
+          value={money(paper.expectedClosedTotal)}
+          sub="stima registrata all'apertura"
+          tone="neutral"
+        />
+        <Stat
+          label="Scostamento dal previsto"
+          value={money(paper.realizedDelta)}
+          tone={paper.realizedDelta > 0 ? "pos" : paper.realizedDelta < 0 ? "neg" : "neutral"}
+          sub={paper.realizationPct === null ? "rapporto non calcolabile" : `${num(paper.realizationPct, 1)}% del previsto`}
         />
       </div>
 
