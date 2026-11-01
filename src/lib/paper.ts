@@ -166,6 +166,11 @@ export type PaperStats = {
   winRate: number | null;
   avgRealizedMarginPct: number | null;
   openExpectedTotal: number;
+  profitFactor: number | null;
+  averageWin: number | null;
+  averageLoss: number | null;
+  bestTrade: number | null;
+  worstTrade: number | null;
 };
 
 export function paperStats(userId: string): PaperStats {
@@ -174,7 +179,12 @@ export function paperStats(userId: string): PaperStats {
   const closed = rows.filter((r) => r.status === "closed");
   const realizedTotal = closed.reduce((s, r) => s + (r.realized_profit ?? 0), 0);
   const wins = closed.filter((r) => (r.realized_profit ?? 0) > 0).length;
-  const losses = closed.filter((r) => (r.realized_profit ?? 0) <= 0).length;
+  const losses = closed.filter((r) => (r.realized_profit ?? 0) < 0).length;
+  const profits = closed.map((r) => r.realized_profit ?? 0).filter(Number.isFinite);
+  const winningProfits = profits.filter((value) => value > 0);
+  const losingProfits = profits.filter((value) => value < 0);
+  const grossWins = winningProfits.reduce((sum, value) => sum + value, 0);
+  const grossLosses = Math.abs(losingProfits.reduce((sum, value) => sum + value, 0));
   return {
     openCount: open.length,
     closedCount: closed.length,
@@ -183,6 +193,11 @@ export function paperStats(userId: string): PaperStats {
     wins,
     losses,
     winRate: closed.length ? (wins / closed.length) * 100 : null,
+    profitFactor: grossLosses > 0 ? grossWins / grossLosses : null,
+    averageWin: winningProfits.length ? grossWins / winningProfits.length : null,
+    averageLoss: losingProfits.length ? -grossLosses / losingProfits.length : null,
+    bestTrade: profits.length ? Math.max(...profits) : null,
+    worstTrade: profits.length ? Math.min(...profits) : null,
     avgRealizedMarginPct: closed.length
       ? closed.reduce((s, r) => s + (r.realized_margin_pct ?? 0), 0) / closed.length
       : null,
