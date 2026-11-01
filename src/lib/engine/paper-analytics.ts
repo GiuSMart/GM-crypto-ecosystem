@@ -32,3 +32,29 @@ export function calculatePaperPerformance(values: number[]): PaperPerformance {
     worstTrade: profits.length ? Math.min(...profits) : null,
   };
 }
+
+
+export type PaperExpectationComparison = {
+  expectedTotal: number;
+  realizedTotal: number;
+  delta: number;
+  realizationPct: number | null;
+};
+
+/** Compare the opening estimate with the final net result for closed simulations only. */
+export function comparePaperExpectedToRealized(
+  trades: { expectedProfit: number; realizedProfit: number }[],
+): PaperExpectationComparison {
+  const valid = trades.filter(
+    (trade) => Number.isFinite(trade.expectedProfit) && Number.isFinite(trade.realizedProfit),
+  );
+  const expectedTotal = valid.reduce((sum, trade) => sum + trade.expectedProfit, 0);
+  const realizedTotal = valid.reduce((sum, trade) => sum + trade.realizedProfit, 0);
+
+  return {
+    expectedTotal,
+    realizedTotal,
+    delta: realizedTotal - expectedTotal,
+    realizationPct: expectedTotal > 0 ? (realizedTotal / expectedTotal) * 100 : null,
+  };
+}
