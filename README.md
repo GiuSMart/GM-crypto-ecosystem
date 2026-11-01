@@ -13,7 +13,7 @@ Piattaforma di monitoraggio multi-venue per opportunità di arbitraggio crypto, 
 | Motore | TypeScript puro (`src/lib/engine`) | — |
 | Dati | SQLite via `node:sqlite` (built-in Node ≥22) | — |
 | Test | `node:test` + `tsx` | MIT |
-| Dati di mercato | API pubbliche Kraken e Coinbase Advanced | — |
+| Dati di mercato | API pubbliche Kraken, Coinbase Exchange e Bybit V5 Spot | — |
 
 Nessuna dipendenza a pagamento. Nessuna API key richiesta per il funzionamento base.
 
@@ -51,8 +51,8 @@ npm run scan       # scansione headless (cron / verifica CLI)
 
 ## Cosa funziona davvero
 
-- **Dati di mercato reali**: order book e ticker pubblici di Kraken (`api.kraken.com`) e Coinbase (`api.exchange.coinbase.com`), senza credenziali, con throttling per rispettare i rate limit documentati (Kraken ~1 req/s, Coinbase 10 req/s).
-- **Motore di arbitraggio**: VWAP di profondità su entrambe le gambe, fee taker, buffer, costi di trasferimento, controllo di staleness, sizing ottimale su più taglie. 14 test automatici coprono i casi critici.
+- **Dati di mercato reali**: ticker e order book pubblici di Kraken (`api.kraken.com`), Coinbase Exchange (`api.exchange.coinbase.com`) e Bybit V5 Spot (host EEA predefinito `api.bybit.eu`), senza credenziali. Bybit è solo market-data: commissioni non configurate, quindi i segnali che la coinvolgono richiedono una fee confermata dall'utente. L'idoneità regionale EEA va verificata prima dell'uso in produzione.
+- **Motore di arbitraggio**: VWAP di profondità su entrambe le gambe, fee taker, buffer, costi di trasferimento, controllo di staleness, sizing ottimale su più taglie. 18 test automatici coprono i casi critici, inclusa la contabilizzazione della fee di trasferimento senza doppio conteggio.
 - **Paper trading**: apertura solo su segnali eseguibili, chiusura marcata al book live, confronto atteso/realizzato.
 - **Multi-tenant**: account, piani (FREE/PRO/PREMIUM con limiti applicati su scansioni e API key), branding per utente e globale.
 - **Affiliate Center**: 7 referral gestiti da database, modificabili dall'admin senza deploy.
@@ -62,7 +62,7 @@ npm run scan       # scansione headless (cron / verifica CLI)
 
 - **Live trading**: architettura predisposta (autorizzazione admin + limiti + audit), ma il router ordini lancia sempre un errore intenzionale. Nessun ordine reale parte.
 - **Prelievi**: mai richiesti, mai supportati.
-- **2FA**, backup automatici, WAF, rate limiter distribuito: non inclusi.
+- **2FA**, backup automatici, WAF, rate limiter distribuito: non inclusi. La protezione del branch `main` non è attiva: abilitare le regole di protezione e richiedere CI verde prima dei merge.
 - **PostgreSQL**: lo schema è SQLite portabile; la migrazione è documentata in `docs/ARCHITECTURE.md` ma non eseguita.
 - **Integrazioni Wirex / Speed / Crypto Voucher**: nessuna API self-service di trading, quindi restano fuori dal motore (solo registro/referral).
 
