@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { crossSite, jsonError } from "@/lib/api";
 import { audit } from "@/lib/audit";
@@ -16,11 +17,26 @@ export async function POST(req: Request) {
   const rl = rateLimit(`register:${ip}`, 3, 10 * 60_000);
   if (!rl.ok) return jsonError("Troppi tentativi di registrazione. Riprova più tardi.", 429, { retryAfterSec: rl.retryAfterSec });
 
-  let body: { displayName?: unknown; email?: unknown; password?: unknown };
+  let body: { displayName?: unknown; email?: unknown; password?: unknown; inviteCode?: unknown };
   try {
     body = (await req.json()) as typeof body;
   } catch {
-    return jsonError("Richiesta non valida.");
+    return jsonError("Richiesta non valida.");  const expectedCode = process.env.GM_TESTER_INVITE_CODE ?? "";
+  const suppliedCode = String(body.inviteCode ?? "");
+
+  if (!expectedCode || !suppliedCode) {
+    return jsonError("Codice d'invito non valido.", 403);
+  }
+
+  const expectedBuffer = Buffer.from(expectedCode);
+  const suppliedBuffer = Buffer.from(suppliedCode);
+
+  if (
+    expectedBuffer.length !== suppliedBuffer.length ||
+    !timingSafeEqual(expectedBuffer, suppliedBuffer)
+  ) {
+    return jsonError("Codice d'invito non valido.", 403);
+  }
   }
 
   const displayName = String(body.displayName ?? "").trim().slice(0, 80);
