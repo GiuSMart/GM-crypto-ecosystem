@@ -141,12 +141,12 @@ test("transfer mode charges the known network fee and stays profitable", () => {
     buyBook: buy,
     sellBook: sell,
     notionalQuote: 500,
-    cost: { ...COST, transferMode: "transfer", networkFeeInBase: 0.00002 },
+    cost: { ...COST, transferMode: "transfer", networkFeeInBase: 0.000002 },
     now: NOW,
   });
   assert.ok(Math.abs(e.transferCost - 0.00002 * e.sellVwap) < 1e-6);
   // The transferred network fee is removed from the base quantity BEFORE selling.
-  const expectedSellable = 500 / 90_000 - 0.00002;
+  const expectedSellable = 500 / 90_000 - 0.000002;
   assert.ok(Math.abs(e.qtyBase - expectedSellable) < 1e-9);
   assert.ok(Math.abs(e.sellProceeds - expectedSellable * 92_500) < 1e-4);
   assert.equal(e.executable, true);
