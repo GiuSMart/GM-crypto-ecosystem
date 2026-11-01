@@ -1,3 +1,4 @@
+
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { crossSite, jsonError } from "@/lib/api";
@@ -15,13 +16,26 @@ export async function POST(req: Request) {
 
   const { ip, userAgent } = await clientMeta();
   const rl = rateLimit(`register:${ip}`, 3, 10 * 60_000);
-  if (!rl.ok) return jsonError("Troppi tentativi di registrazione. Riprova più tardi.", 429, { retryAfterSec: rl.retryAfterSec });
+  if (!rl.ok) {
+    return jsonError("Troppi tentativi di registrazione. Riprova più tardi.", 429, {
+      retryAfterSec: rl.retryAfterSec,
+    });
+  }
 
-  let body: { displayName?: unknown; email?: unknown; password?: unknown; inviteCode?: unknown };
+  let body: {
+    displayName?: unknown;
+    email?: unknown;
+    password?: unknown;
+    inviteCode?: unknown;
+  };
+
   try {
     body = (await req.json()) as typeof body;
   } catch {
-    return jsonError("Richiesta non valida.");  const expectedCode = process.env.GM_TESTER_INVITE_CODE ?? "";
+    return jsonError("Richiesta non valida.");
+  }
+
+  const expectedCode = process.env.GM_TESTER_INVITE_CODE ?? "";
   const suppliedCode = String(body.inviteCode ?? "");
 
   if (!expectedCode || !suppliedCode) {
@@ -37,7 +51,6 @@ export async function POST(req: Request) {
   ) {
     return jsonError("Codice d'invito non valido.", 403);
   }
-  }
 
   const displayName = String(body.displayName ?? "").trim().slice(0, 80);
   const email = String(body.email ?? "").trim().toLowerCase().slice(0, 200);
@@ -47,7 +60,9 @@ export async function POST(req: Request) {
   if (!EMAIL_RE.test(email)) return jsonError("Indirizzo email non valido.");
 
   const problems = passwordProblems(password);
-  if (problems.length) return jsonError(`La password deve contenere ${problems.join(", ")}.`);
+  if (problems.length) {
+    return jsonError(`La password deve contenere ${problems.join(", ")}.`);
+  }
 
   if (one("SELECT id FROM users WHERE email = ?", email)) {
     return jsonError("Esiste già un account con questa email.", 409);
@@ -55,6 +70,7 @@ export async function POST(req: Request) {
 
   const id = newId("usr");
   const now = new Date().toISOString();
+
   run(
     `INSERT INTO users(id, email, password_hash, role, plan, display_name, status, must_change_password, created_at)
      VALUES(?,?,?,'client','free',?,'active',0,?)`,
@@ -64,6 +80,7 @@ export async function POST(req: Request) {
     displayName,
     now,
   );
+
   run(
     `INSERT INTO subscriptions(id, user_id, plan_id, status, started_at, note) VALUES(?,?,?,?,?,?)`,
     newId("sub"),
@@ -79,5 +96,6 @@ export async function POST(req: Request) {
 
   const res = NextResponse.json({ ok: true, data: { id } });
   res.cookies.set(COOKIE_NAME, token, sessionCookieOptions);
+
   return res;
-}
+                     }
