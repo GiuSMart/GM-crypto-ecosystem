@@ -11,6 +11,7 @@ import { ago, money, num, pct } from "@/lib/format";
 import { getBoard, latestOpportunities, latestScan, marginSeries, parsePayload, type Board } from "@/lib/market";
 import { activeLiveAuthorization, liveBlockers } from "@/lib/live";
 import { paperStats } from "@/lib/paper";
+import { summarizeSignalPersistence, type SignalObservation } from "@/lib/engine/signal-intelligence";
 import { planLimits } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +38,13 @@ export default async function OverviewPage() {
   const executableCount = opportunities.filter((o) => o.executable === 1).length;
   const paper = paperStats(user.id);
   const series = marginSeries(30);
+  const signalSince = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const signalObservations = all<SignalObservation>(
+    `SELECT ts, pair, buy_venue, sell_venue, net_profit, margin_pct, executable
+     FROM opportunities WHERE ts >= ? ORDER BY ts DESC LIMIT 1000`,
+    signalSince,
+  );
+  const persistentSignals = summarizeSignalPersistence(signalObservations);
   const live = activeLiveAuthorization(user.id);
   const credentials = all<{ id: string }>("SELECT id FROM credentials WHERE user_id = ?", user.id);
   const wallets = all<{ id: string }>("SELECT id FROM wallets WHERE user_id = ?", user.id);
@@ -243,6 +251,66 @@ export default async function OverviewPage() {
           ) : (
             <Empty title="Nessuno scarto da mostrare" body="Gli scarti vengono registrati a ogni scansione, con il motivo completo." />
           )}
+        </Card>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
+        <Card>
+          <CardHead
+            title="GM Intelligence · segnali ricorrenti"
+            subtitle="Stessa coppia e stessa direzione, osservate nelle ultime 24 ore"
+            icon={<Icon name="target" size={17} />}
+          />
+          {persistentSignals.length ? (
+            <div className="gm-scroll-x">
+              <table className="gm-table">
+                <thead>
+                  <tr>
+                    <th>Rotta</th>
+                    <th className="text-right">Rilevazioni</th>
+                    <th className="text-right">Netto medio</th>
+                    <th>Stato</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {persistentSignals.slice(0, 6).map((signal) => (
+                    <tr key={signal.key}>
+                      <td>
+                        <div className="text-xs font-medium text-paper">{signal.pair}</div>
+                        <div className="text-[10px] text-muted">
+                          {VENUE_MAP[signal.buyVenue]?.name ?? signal.buyVenue} → {VENUE_MAP[signal.sellVenue]?.name ?? signal.sellVenue}
+                        </div>
+                        <div className="text-[10px] text-muted">
+                          {signal.executableSamples}/{signal.samples} eseguibili · {signal.positiveNetSamples} netti positivi
+                        </div>
+                      </td>
+                      <td className="num text-right text-xs">{signal.samples}</td>
+                      <td className={cn("num text-right text-xs", signal.averageNetProfit > 0 ? "text-pos" : "text-neg")}>{money(signal.averageNetProfit)}</td>
+                      <td>
+                        <Badge tone={signal.status === "Persistente" ? "pos" : "neutral"}>{signal.status}</Badge>
+                        <div className="mt-1 text-[10px] text-muted">{num(signal.durationMinutes, 1)} min</div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <Empty title="Storico ancora insufficiente" body="Servono più scansioni della stessa rotta per individuare ricorrenze nelle ultime 24 ore." />
+          )}
+          <p className="px-4 pb-3 text-[10px] leading-relaxed text-muted">
+            Ricorrenza descrittiva, non previsione né probabilità di profitto. Ogni osservazione resta soggetta a fee, liquidità, latenza e variazioni del book.
+          </p>
+        </Card>
+
+        <Card className="px-4 py-4">
+          <CardHead title="Come viene classificato" subtitle="Regole trasparenti, senza punteggi opachi" icon={<Icon name="info" size={17} />} />
+          <div className="space-y-3 text-[11px] text-muted">
+            <div><Badge tone="neutral">In osservazione</Badge><p className="mt-1">Una sola rilevazione della stessa rotta.</p></div>
+            <div><Badge tone="neutral">Ricorrente</Badge><p className="mt-1">Almeno 2 rilevazioni della stessa coppia e direzione.</p></div>
+            <div><Badge tone="pos">Persistente</Badge><p className="mt-1">Almeno 3 rilevazioni distribuite su 5 o più minuti.</p></div>
+            <p>La classificazione non sostituisce la verifica in tempo reale: un segnale passato può scomparire prima dell'esecuzione.</p>
+          </div>
         </Card>
       </div>
 
