@@ -149,6 +149,9 @@ test("transfer mode charges the known network fee and stays profitable", () => {
   const expectedSellable = 500 / 90_000 - 0.000002;
   assert.ok(Math.abs(e.qtyBase - expectedSellable) < 1e-9);
   assert.ok(Math.abs(e.sellProceeds - expectedSellable * 92_500) < 1e-4);
+  // The fee is already reflected in the smaller sold quantity: report it, but do not deduct it twice.
+  const expectedNet = e.sellProceeds - e.sellFee - e.bufferCost - e.buySpend;
+  assert.ok(Math.abs(e.netProfit - expectedNet) < 1e-8);
   assert.equal(e.executable, true);
 });
 
