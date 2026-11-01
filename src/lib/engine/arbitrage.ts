@@ -129,7 +129,7 @@ export type Evaluation = {
   topBid: number;
   /** (topBid - topAsk) / topAsk — the naive number the engine refuses to trust. */
   grossSpreadPct: number;
-  /** Size actually acquired, in base units. */
+  /** Base quantity available for sale after any transfer fee, in base units. */
   qtyBase: number;
   buyVwap: number;
   sellVwap: number;
