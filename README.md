@@ -75,6 +75,8 @@ GM_WORKER_ENABLED=true npm run worker # worker server continuo (una sola istanza
 
 ## Documentazione
 
+- [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) — controlli obbligatori prima del rilascio e del lancio commerciale
+
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — livelli, modello dati, sicurezza, scala, migrazione Postgres
 - [`docs/PHASES.md`](docs/PHASES.md) — stato reale fase per fase, con costi e limiti
 - [`docs/API.md`](docs/API.md) — endpoint interni e payload
