@@ -13,9 +13,9 @@ Piattaforma di monitoraggio multi-venue per opportunità di arbitraggio crypto, 
 | Motore | TypeScript puro (`src/lib/engine`) | — |
 | Dati | SQLite via `node:sqlite` (built-in Node ≥22) | — |
 | Test | `node:test` + `tsx` | MIT |
-| Dati di mercato | API pubbliche Kraken e Coinbase Advanced | — |
+| Dati di mercato | API pubbliche Kraken, Coinbase Advanced e Bybit V5 Spot | — |
 
-Nessuna dipendenza a pagamento. Nessuna API key richiesta per il funzionamento base.
+Nessuna dipendenza a pagamento. Nessuna API key richiesta per il funzionamento base e per i dati pubblici di mercato.
 
 ## Avvio
 
@@ -44,27 +44,37 @@ Email degli account creati: `admin@gmarbitrage.ai` (ruolo admin) e `cliente@demo
 npm run dev        # sviluppo
 npm run build      # build di produzione
 npm start          # server di produzione
-npm test           # test del motore (node:test)
+npm test           # test automatici
 npm run typecheck  # tsc --noEmit
 npm run scan       # scansione headless (cron / verifica CLI)
 ```
 
-## Cosa funziona davvero
+## Cosa è implementato
 
-- **Dati di mercato reali**: order book e ticker pubblici di Kraken (`api.kraken.com`) e Coinbase (`api.exchange.coinbase.com`), senza credenziali, con throttling per rispettare i rate limit documentati (Kraken ~1 req/s, Coinbase 10 req/s).
-- **Motore di arbitraggio**: VWAP di profondità su entrambe le gambe, fee taker, buffer, costi di trasferimento, controllo di staleness, sizing ottimale su più taglie. 14 test automatici coprono i casi critici.
-- **Paper trading**: apertura solo su segnali eseguibili, chiusura marcata al book live, confronto atteso/realizzato.
-- **Multi-tenant**: account, piani (FREE/PRO/PREMIUM con limiti applicati su scansioni e API key), branding per utente e globale.
-- **Affiliate Center**: 7 referral gestiti da database, modificabili dall'admin senza deploy.
+- **Dati di mercato**: adapter REST pubblici per Kraken, Coinbase Exchange e Bybit V5 Spot. Bybit supporta scoperta strumenti Spot, ticker e snapshot order book senza credenziali. Host predefinito Bybit EEA: `https://api.bybit.eu`; override limitato a host HTTPS Bybit esplicitamente autorizzati.
+- **Motore di arbitraggio**: VWAP di profondità su entrambe le gambe, fee taker, buffer, costi di trasferimento, controllo di staleness, slippage, sizing su più taglie. La regola NO PROFIT = NO TRADE blocca segnali che non coprono tutti i costi configurati.
+- **Paper trading**: apertura solo su segnali eseguibili, chiusura marcata al book disponibile, confronto atteso/realizzato.
+- **Multi-tenant**: account, piani FREE/PRO/PREMIUM con limiti su scansioni e API key, branding per utente e globale.
+- **Affiliate Center**: referral gestiti da database, modificabili dall'admin senza deploy.
 - **Sicurezza**: scrypt, sessioni revocabili, cookie httpOnly, CSRF same-origin, rate limiting, AES-256-GCM per le API key, audit log, segregazione per `user_id`.
 
-## Cosa NON è implementato (dichiarato)
+## Stato e limiti importanti di Bybit
 
-- **Live trading**: architettura predisposta (autorizzazione admin + limiti + audit), ma il router ordini lancia sempre un errore intenzionale. Nessun ordine reale parte.
+L'adapter Bybit è presente nel codice e registrato tra le venue. Il merge e la CI sul commit di merge hanno avuto esito positivo (typecheck, test e build). **Questo non equivale a una verifica end-to-end dell'endpoint Bybit nel deployment dell'applicazione**: la connettività effettiva, la risposta regionale e la qualità dei dati devono ancora essere controllate nell'ambiente in cui verrà eseguita la piattaforma.
+
+- Solo dati pubblici **Spot**: strumenti, ticker e order book.
+- Nessun endpoint privato Bybit: non legge saldi e non invia ordini.
+- Commissioni Bybit non configurate: i segnali che richiedono una fee Bybit attendibile devono restare bloccati finché l'operatore non inserisce il proprio tier reale.
+- Per utenti/conti EEA verificare prima l'idoneità regionale e l'host API ufficialmente supportato. L'host predefinito è `api.bybit.eu`.
+- Non è stato dichiarato alcun test di trading reale.
+
+## Cosa NON è implementato
+
+- **Live trading**: il router ordini lancia intenzionalmente un errore; nessun ordine reale parte.
 - **Prelievi**: mai richiesti, mai supportati.
-- **2FA**, backup automatici, WAF, rate limiter distribuito: non inclusi.
+- **2FA**, backup automatici, WAF e rate limiter distribuito: non inclusi.
 - **PostgreSQL**: lo schema è SQLite portabile; la migrazione è documentata in `docs/ARCHITECTURE.md` ma non eseguita.
-- **Integrazioni Wirex / Speed / Crypto Voucher**: nessuna API self-service di trading, quindi restano fuori dal motore (solo registro/referral).
+- **Pagamenti SaaS**: disattivati finché non viene configurato e verificato un provider.
 
 ## Documentazione
 
@@ -74,8 +84,8 @@ npm run scan       # scansione headless (cron / verifica CLI)
 
 ## Licenze delle dipendenze
 
-Next.js (MIT), React (MIT), Tailwind CSS (MIT), TypeScript (Apache-2.0), tsx (MIT). `node:sqlite` è parte di Node.js (MIT). Nessuna dipendenza copyleft, nessuna licenza commerciale richiesta.
+Next.js (MIT), React (MIT), Tailwind CSS (MIT), TypeScript (Apache-2.0), tsx (MIT). `node:sqlite` è parte di Node.js. Nessuna dipendenza copyleft, nessuna licenza commerciale richiesta.
 
 ## Avvertenza
 
-Strumento di analisi e simulazione. Non è consulenza finanziaria. L'arbitraggio comporta rischio di esecuzione, latenza, controparte e cambio. Verifica sempre le commissioni del tuo tier reale.
+Strumento di analisi e simulazione. Non è consulenza finanziaria. L'arbitraggio comporta rischio di esecuzione, latenza, controparte, cambio e liquidità. Verifica sempre le commissioni del tuo tier reale.
