@@ -51,7 +51,7 @@ export function summarizeSignalPersistence(observations: SignalObservation[]): S
         ? Math.max(0, (lastMs - firstMs) / 60_000)
         : 0;
       const samples = rows.length;
-      const status = samples >= 3 && durationMinutes >= 5
+      const status: SignalPersistence["status"] = samples >= 3 && durationMinutes >= 5
         ? "Persistente"
         : samples >= 2
           ? "Ricorrente"
