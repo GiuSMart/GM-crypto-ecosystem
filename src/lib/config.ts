@@ -12,8 +12,8 @@ export const AI_NAME = "GM TRADING INTELLIGENCE";
 export const ASSETS = ["BTC", "ETH", "SOL", "XRP", "ADA", "LINK", "LTC", "DOT"] as const;
 export type Asset = (typeof ASSETS)[number];
 
-/** Quote currencies. Both Kraken and Coinbase publish public books for these. */
-export const QUOTES = ["USD", "EUR"] as const;
+/** Quote currencies are distinct assets: USDT is never treated as USD. */
+export const QUOTES = ["USD", "EUR", "USDT"] as const;
 export type Quote = (typeof QUOTES)[number];
 
 export type EngineSettings = {
@@ -485,4 +485,4 @@ export const COOKIE_NAME = "gm_session";
 export const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 
 /** Domain whitelist for outbound market-data calls (defence against SSRF). */
-export const ALLOWED_VENUE_HOSTS = ["api.kraken.com", "api.exchange.coinbase.com", "api.coinbase.com", "api.bybit.eu", "api.bybit.com", "api.bytick.com", "api-testnet.bybit.com"];
+export const ALLOWED_VENUE_HOSTS = ["api.kraken.com", "api.exchange.coinbase.com", "api.coinbase.com", "api.bybit.eu", "api.bytick.eu", "api-testnet.bybit.eu", "api.bybit.com", "api.bytick.com", "api-testnet.bybit.com"];
