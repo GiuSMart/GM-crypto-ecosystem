@@ -1,10 +1,10 @@
 import { newId } from "./crypto";
 import { all, getUserSettings, one, run } from "./db";
 import { evaluateOpportunity, walkBids } from "./engine/arbitrage";
+import { calculatePaperRealizedProfit } from "./engine/paper";
 import { resolveFee } from "./engine/fees";
 import { audit } from "./audit";
 import { buildCostModel, getBook, opportunityById } from "./market";
-import { getNetworkFees } from "./network-fees";
 
 export type PaperTradeRow = {
   id: string;
@@ -104,7 +104,8 @@ export type CloseResult = { ok: true; realizedProfit: number; realizedMarginPct:
 
 /**
  * Close a paper trade by marking the exit leg against the live bid ladder.
- * Realised P&L = current sell proceeds (net of fee, buffer and transfer) − entry spend.
+ * Realised P&L = current sell proceeds (net of sell fee and buffer) − entry spend.
+ * The transfer fee was already deducted from the quantity stored at entry.
  */
 export async function closePaperTrade(userId: string, tradeId: string, ip: string | null = null): Promise<CloseResult> {
   const trade = one<PaperTradeRow>("SELECT * FROM paper_trades WHERE id = ? AND user_id = ?", tradeId, userId);
@@ -122,17 +123,15 @@ export async function closePaperTrade(userId: string, tradeId: string, ip: strin
 
     const feeSell = exit.filledQuote * (sellFee.takerPct / 100);
     const buffer = exit.filledQuote * (settings.safetyBufferPct / 100);
-    let transfer = 0;
-    if (settings.transferMode === "transfer") {
-      const network = getNetworkFees()[trade.pair.split("/")[0]];
-      if (network?.feeInBase == null) {
-        return { ok: false, error: "Modalità transfer attiva ma fee di rete non configurata: chiusura bloccata." };
-      }
-      transfer = network.feeInBase * exit.avgPrice;
-    }
-
     const entrySpend = trade.notional + trade.fee_buy;
-    const realized = exit.filledQuote - feeSell - buffer - transfer - entrySpend;
+    // qty was persisted after deducting the withdrawal fee at entry. Do not
+    // charge that same transfer fee again when marking the exit.
+    const realized = calculatePaperRealizedProfit({
+      exitProceeds: exit.filledQuote,
+      sellFeePct: sellFee.takerPct,
+      safetyBufferPct: settings.safetyBufferPct,
+      entrySpend,
+    });
     const realizedMargin = entrySpend > 0 ? (realized / entrySpend) * 100 : 0;
 
     run(
