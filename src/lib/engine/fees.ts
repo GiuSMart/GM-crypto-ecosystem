@@ -10,6 +10,11 @@ export type ResolvedFee = {
   note: string | null;
 };
 
+/** Only account-confirmed or operator-verified fee schedules may drive executable signals. */
+export function feeCanDriveSignal(confidence: ResolvedFee["confidence"]): boolean {
+  return confidence !== "unverified";
+}
+
 /**
  * Fee actually used for a signal:
  *   user override  >  operator reference schedule.
@@ -29,7 +34,7 @@ export function resolveFee(venueId: string, userId: string | null): ResolvedFee 
       note: override.note,
     };
   }
-  if (!reference) return null;
+  if (!reference || !feeCanDriveSignal(reference.confidence)) return null;
   return {
     venueId,
     makerPct: reference.makerPct,

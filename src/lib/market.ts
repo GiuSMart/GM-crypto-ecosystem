@@ -208,7 +208,17 @@ export async function runScan(
     }
   }
   directions.sort((a, b) => b.gross - a.gross);
-  const targets = directions.slice(0, limit);
+
+  // Apply spread and fee eligibility BEFORE limiting candidates. Otherwise an
+  // unusable high-spread pair can occupy a slot and hide a valid opportunity.
+  const feeEligible = directions.filter((target) => {
+    if (target.gross < settings.candidateSpreadPct) return false;
+    return Boolean(resolveFee(target.buy, userId) && resolveFee(target.sell, userId));
+  });
+  const targets = feeEligible.slice(0, limit);
+  if (directions.length && !targets.length) {
+    errors.push("Nessun candidato supera la soglia di spread e dispone di commissioni verificate o confermate dall'utente.");
+  }
 
   const evaluations: ScanEvaluation[] = [];
 

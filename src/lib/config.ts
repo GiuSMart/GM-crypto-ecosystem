@@ -13,7 +13,7 @@ export const ASSETS = ["BTC", "ETH", "SOL", "XRP", "ADA", "LINK", "LTC", "DOT"] 
 export type Asset = (typeof ASSETS)[number];
 
 /** Quote currencies are distinct assets: USDT is never treated as USD. */
-export const QUOTES = ["USD", "EUR", "USDT"] as const;
+export const QUOTES = ["USD", "EUR", "USDT", "USDC"] as const;
 export type Quote = (typeof QUOTES)[number];
 
 export type EngineSettings = {

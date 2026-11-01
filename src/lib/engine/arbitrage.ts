@@ -129,7 +129,7 @@ export type Evaluation = {
   topBid: number;
   /** (topBid - topAsk) / topAsk — the naive number the engine refuses to trust. */
   grossSpreadPct: number;
-  /** Size actually acquired, in base units. */
+  /** Base quantity available for sale after any transfer fee, in base units. */
   qtyBase: number;
   buyVwap: number;
   sellVwap: number;
@@ -179,7 +179,21 @@ export function evaluateOpportunity({ pair, buyBook, sellBook, notionalQuote, co
   const grossSpreadPct = topAsk > 0 ? ((topBid - topAsk) / topAsk) * 100 : 0;
 
   const buy = walkAsks(buyBook.asks, notionalQuote);
-  const sell = buy.complete ? walkBids(sellBook.bids, buy.filledBase) : { ...walkAsks([], 0), complete: false, avgPrice: 0, worstPrice: 0 };
+  let networkFeeBase = 0;
+  if (cost.transferMode === "transfer") {
+    if (cost.networkFeeInBase === null || !Number.isFinite(cost.networkFeeInBase) || cost.networkFeeInBase < 0) {
+      reasons.push("Costo di trasferimento on-chain non configurato o non valido: profitto netto non calcolabile.");
+    } else {
+      networkFeeBase = cost.networkFeeInBase;
+    }
+  }
+  const sellableBase = Math.max(0, buy.filledBase - networkFeeBase);
+  if (cost.transferMode === "transfer" && buy.complete && sellableBase <= 0) {
+    reasons.push("La fee di rete è uguale o superiore alla quantità acquisita.");
+  }
+  const sell = buy.complete && sellableBase > 0
+    ? walkBids(sellBook.bids, sellableBase)
+    : { ...walkAsks([], 0), complete: false, avgPrice: 0, worstPrice: 0 };
 
   const buyFee = buy.filledQuote * (cost.buyFeePct / 100);
   const sellFee = sell.filledQuote * (cost.sellFeePct / 100);
@@ -189,16 +203,12 @@ export function evaluateOpportunity({ pair, buyBook, sellBook, notionalQuote, co
   let transferCost = 0;
   let transferPct = 0;
   if (cost.transferMode === "transfer") {
-    if (cost.networkFeeInBase === null || !Number.isFinite(cost.networkFeeInBase)) {
-      reasons.push("Costo di trasferimento on-chain non configurato: in modalità transfer il profitto netto non è calcolabile.");
+    if (reasons.some((reason) => reason.includes("Costo di trasferimento on-chain"))) {
+      transferCost = Number.NaN;
+    } else if (sellableBase <= 0) {
       transferCost = Number.NaN;
     } else {
-      transferCost = cost.networkFeeInBase * sell.avgPrice;
-      const sellable = sell.filledBase - cost.networkFeeInBase;
-      if (sellable <= 0) {
-        reasons.push("La fee di rete è più grande della quantità acquisita.");
-        transferCost = Number.NaN;
-      }
+      transferCost = networkFeeBase * sell.avgPrice;
     }
     transferPct = buySpend > 0 && Number.isFinite(transferCost) ? (transferCost / buySpend) * 100 : 0;
   }
@@ -245,7 +255,8 @@ export function evaluateOpportunity({ pair, buyBook, sellBook, notionalQuote, co
     topAsk: round(topAsk),
     topBid: round(topBid),
     grossSpreadPct: round(grossSpreadPct, 6),
-    qtyBase: round(buy.filledBase),
+    // In transfer mode the network fee is removed before the sale; report only the sellable quantity.
+    qtyBase: round(sell.filledBase),
     buyVwap: round(buy.avgPrice),
     sellVwap: round(sell.avgPrice),
     buySpend: round(buySpend),
