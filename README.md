@@ -46,7 +46,8 @@ npm run build      # build di produzione
 npm start          # server di produzione
 npm test           # test del motore (node:test)
 npm run typecheck  # tsc --noEmit
-npm run scan       # scansione headless (cron / verifica CLI)
+npm run scan       # scansione headless singola
+GM_WORKER_ENABLED=true npm run worker # worker server continuo (una sola istanza)
 ```
 
 ## Cosa funziona davvero
@@ -57,6 +58,12 @@ npm run scan       # scansione headless (cron / verifica CLI)
 - **Multi-tenant**: account, piani (FREE/PRO/PREMIUM con limiti applicati su scansioni e API key), branding per utente e globale.
 - **Affiliate Center**: 7 referral gestiti da database, modificabili dall'admin senza deploy.
 - **Sicurezza**: scrypt, sessioni revocabili, cookie httpOnly, CSRF same-origin, rate limiting, AES-256-GCM per le API key, audit log, segregazione per `user_id`.
+
+## Worker server (prototipo operativo)
+
+È disponibile un worker headless opt-in per scansioni pubbliche continue: `GM_WORKER_ENABLED=true npm run worker`. L'intervallo è configurabile con `GM_WORKER_INTERVAL_MS` (default 60 s, minimo 30 s, massimo 1 ora). Le scansioni sono seriali, non si sovrappongono nello stesso processo e continuano dopo errori con log strutturati.
+
+**Vincoli di deploy:** avviare una sola istanza worker; web e worker devono usare lo stesso `GM_DB_PATH`/`GM_DATA_DIR` su volume persistente e compatibile con SQLite. Non usare filesystem effimeri/serverless o storage di rete non adatto a SQLite WAL. Il worker non implementa ancora lease distribuito, scheduler gestito dall'hosting, push notifications, né monitoraggio esterno. Non equivale a un servizio 24/7 finché non viene distribuito e monitorato su un host persistente.
 
 ## Cosa NON è implementato (dichiarato)
 
