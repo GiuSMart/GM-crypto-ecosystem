@@ -47,12 +47,30 @@ export function sweepRateLimiter(maxAgeMs = 60 * 60 * 1000) {
  * outbound call is serialised through a per-venue queue with a minimum spacing.
  */
 const lastCall = new Map<string, number>();
+const venueQueues = new Map<string, Promise<void>>();
 
+/**
+ * Serialize requests per venue, then enforce spacing between their start times.
+ * A timestamp-only scheduler lets simultaneous callers receive the same slot
+ * and burst together; the promise queue prevents that under concurrent scans.
+ */
 export async function throttled<T>(venue: string, minSpacingMs: number, fn: () => Promise<T>): Promise<T> {
-  const now = Date.now();
-  const last = lastCall.get(venue) ?? 0;
-  const wait = Math.max(0, last + minSpacingMs - now);
-  lastCall.set(venue, now + wait);
-  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-  return fn();
+  const previous = venueQueues.get(venue) ?? Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const queued = previous.then(() => gate);
+  venueQueues.set(venue, queued);
+
+  await previous;
+  try {
+    const wait = Math.max(0, (lastCall.get(venue) ?? 0) + minSpacingMs - Date.now());
+    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+    lastCall.set(venue, Date.now());
+    return await fn();
+  } finally {
+    release();
+    if (venueQueues.get(venue) === queued) venueQueues.delete(venue);
+  }
 }
