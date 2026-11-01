@@ -12,6 +12,7 @@ type ScanResponse = {
     executable: number;
     durationMs: number;
     pairsScanned: number;
+    quote: string;
     evaluations?: AlertCandidate[];
   };
 };
@@ -127,7 +128,6 @@ export default function MonitorRunner({
             const notification = new Notification(`GM Intelligence · ${signal.pair}`, {
               body: `Netto stimato ${signal.netProfit.toFixed(2)} ${data.quote} · margine ${signal.marginPct.toFixed(3)}%\n${signal.buyVenue} → ${signal.sellVenue}`,
               tag: signal.key,
-              renotify: false,
             });
             notification.onclick = () => window.focus();
             lastSent[signal.key] = now;
