@@ -12,8 +12,8 @@ export const AI_NAME = "GM TRADING INTELLIGENCE";
 export const ASSETS = ["BTC", "ETH", "SOL", "XRP", "ADA", "LINK", "LTC", "DOT"] as const;
 export type Asset = (typeof ASSETS)[number];
 
-/** Quote currencies. Both Kraken and Coinbase publish public books for these. */
-export const QUOTES = ["USD", "EUR"] as const;
+/** Quote currencies are distinct assets: USDT is never treated as USD. */
+export const QUOTES = ["USD", "EUR", "USDT"] as const;
 export type Quote = (typeof QUOTES)[number];
 
 export type EngineSettings = {
@@ -171,6 +171,22 @@ export const VENUES: Venue[] = [
       "Public REST: 10 requests/second per IP with bursts to 15 (docs.cdp.coinbase.com). Public responses are cached 1s.",
     notes:
       "Public Exchange market data (products / book / ticker) needs no credentials. Advanced Trade also offers a public WebSocket without a JWT.",
+    verifiedAt: "2026-11-01",
+  },
+  {
+    id: "bybit",
+    name: "Bybit Spot",
+    kind: "exchange",
+    logo: "bybit",
+    status: "public-api",
+    publicMarketData: true,
+    balanceReadable: false,
+    orderPlacement: false,
+    withdrawalSupported: null,
+    apiDocs: "https://bybit-exchange.github.io/docs/v5/market",
+    fee: null,
+    rateLimitNote: "Public V5 REST market-data requests are throttled by the adapter; actual limits and availability depend on the API host and account region.",
+    notes: "Spot instruments, tickers and order books only. EEA deployments default to api.bybit.eu; verify regional eligibility and the currently supported host before production use. No private account endpoints or order placement are implemented.",
     verifiedAt: "2026-11-01",
   },
   {
@@ -469,4 +485,4 @@ export const COOKIE_NAME = "gm_session";
 export const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 
 /** Domain whitelist for outbound market-data calls (defence against SSRF). */
-export const ALLOWED_VENUE_HOSTS = ["api.kraken.com", "api.exchange.coinbase.com", "api.coinbase.com"];
+export const ALLOWED_VENUE_HOSTS = ["api.kraken.com", "api.exchange.coinbase.com", "api.coinbase.com", "api.bybit.eu", "api.bytick.eu", "api-testnet.bybit.eu", "api.bybit.com", "api.bytick.com", "api-testnet.bybit.com"];

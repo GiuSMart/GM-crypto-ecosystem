@@ -1,4 +1,5 @@
 import { coinbase } from "./coinbase";
+import { bybit } from "./bybit";
 import { kraken } from "./kraken";
 import type { VenueAdapter } from "./types";
 
@@ -6,4 +7,5 @@ import type { VenueAdapter } from "./types";
 export const ADAPTERS: Record<string, VenueAdapter> = {
   [kraken.id]: kraken,
   [coinbase.id]: coinbase,
+  [bybit.id]: bybit,
 };

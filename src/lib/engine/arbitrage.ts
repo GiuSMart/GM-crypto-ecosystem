@@ -210,7 +210,7 @@ export function evaluateOpportunity({ pair, buyBook, sellBook, notionalQuote, co
   const buySlippagePct = topAsk > 0 && buy.complete ? (buy.avgPrice / topAsk - 1) * 100 : 0;
   const sellSlippagePct = topBid > 0 && sell.complete ? (1 - sell.avgPrice / topBid) * 100 : 0;
 
-  const dataAgeMs = now - Math.max(buyBook.ts, sellBook.ts);
+  const dataAgeMs = now - Math.min(buyBook.ts, sellBook.ts);
 
   const breakevenSpreadPct = round(cost.buyFeePct + cost.sellFeePct + cost.safetyBufferPct + transferPct, 6);
 
