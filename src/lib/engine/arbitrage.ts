@@ -216,7 +216,9 @@ export function evaluateOpportunity({ pair, buyBook, sellBook, notionalQuote, co
   const bufferCost = proceedsAfterFee * (cost.safetyBufferPct / 100);
   // networkFeeBase has already been removed from sellableBase, so subtracting
   // transferCost here would double-count the same withdrawal fee.
-  const netProfit = proceedsAfterFee - bufferCost - buySpend;
+  const netProfit = cost.transferMode === "transfer" && !Number.isFinite(transferCost)
+    ? Number.NaN
+    : proceedsAfterFee - bufferCost - buySpend;
   const marginPct = buySpend > 0 ? (netProfit / buySpend) * 100 : 0;
 
   const buySlippagePct = topAsk > 0 && buy.complete ? (buy.avgPrice / topAsk - 1) * 100 : 0;
