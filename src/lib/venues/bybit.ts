@@ -124,7 +124,7 @@ export const bybit: VenueAdapter = {
     const symbol = index.symbolByPair.get(pair);
     if (!symbol) throw new Error(`Bybit: coppia ${pair} non disponibile`);
 
-    const limit = Math.max(1, Math.min(1000, Math.floor(depth)));
+    const limit = Math.max(1, Math.min(50, Math.floor(depth)));
     const response = await bybitGet<{
       s: string;
       b: [string, string][];
