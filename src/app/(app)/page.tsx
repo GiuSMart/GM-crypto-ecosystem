@@ -304,7 +304,7 @@ export default async function OverviewPage() {
         </Card>
 
         <Card className="px-4 py-4">
-          <CardHead title="Come viene classificato" subtitle="Regole trasparenti, senza punteggi opachi" icon={<Icon name="info" size={17} />} />
+          <CardHead title="Come viene classificato" subtitle="Regole trasparenti, senza punteggi opachi" icon={<Icon name="target" size={17} />} />
           <div className="space-y-3 text-[11px] text-muted">
             <div><Badge tone="neutral">In osservazione</Badge><p className="mt-1">Una sola rilevazione della stessa rotta.</p></div>
             <div><Badge tone="neutral">Ricorrente</Badge><p className="mt-1">Almeno 2 rilevazioni della stessa coppia e direzione.</p></div>
