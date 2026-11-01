@@ -156,6 +156,15 @@ test("stale books cannot be executed", () => {
   assert.ok(e.rejectReasons.some((r) => r.includes("Dati non aggiornati")));
 });
 
+test("one fresh book cannot hide the other stale book", () => {
+  const buy = book("kraken", [[90_000, 1]], [89_990], NOW - 60_000);
+  const sell = book("bybit", [[92_600, 1]], [[92_500, 1]], NOW - 100);
+  const e = evaluateOpportunity({ pair: "BTC/USD", buyBook: buy, sellBook: sell, notionalQuote: 500, cost: COST, now: NOW });
+  assert.equal(e.executable, false);
+  assert.equal(e.dataAgeMs, 60_000);
+  assert.ok(e.rejectReasons.some((r) => r.includes("Dati non aggiornati")));
+});
+
 test("network fee larger than the acquired quantity is rejected", () => {
   const buy = book("kraken", [[90_000, 1]], [89_990]);
   const sell = book("coinbase", [[92_600, 1]], [[92_500, 1]]);
