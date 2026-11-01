@@ -2,7 +2,7 @@ import { newId } from "./crypto";
 import { all, getUserSettings, one, run } from "./db";
 import { evaluateOpportunity, walkBids } from "./engine/arbitrage";
 import { calculatePaperRealizedProfit } from "./engine/paper";
-import { calculatePaperPerformance } from "./engine/paper-analytics";
+import { calculatePaperPerformance, comparePaperExpectedToRealized } from "./engine/paper-analytics";
 import { resolveFee } from "./engine/fees";
 import { audit } from "./audit";
 import { buildCostModel, getBook, opportunityById } from "./market";
@@ -161,7 +161,10 @@ export type PaperStats = {
   openCount: number;
   closedCount: number;
   expectedTotal: number;
+  expectedClosedTotal: number;
   realizedTotal: number;
+  realizedDelta: number;
+  realizationPct: number | null;
   wins: number;
   losses: number;
   winRate: number | null;
@@ -178,13 +181,18 @@ export function paperStats(userId: string): PaperStats {
   const rows = all<PaperTradeRow>("SELECT * FROM paper_trades WHERE user_id = ?", userId);
   const open = rows.filter((r) => r.status === "open");
   const closed = rows.filter((r) => r.status === "closed");
-  const realizedTotal = closed.reduce((s, r) => s + (r.realized_profit ?? 0), 0);
+  const comparison = comparePaperExpectedToRealized(
+    closed.map((r) => ({ expectedProfit: r.expected_profit, realizedProfit: r.realized_profit ?? Number.NaN })),
+  );
   const performance = calculatePaperPerformance(closed.map((r) => r.realized_profit ?? 0));
   return {
     openCount: open.length,
     closedCount: closed.length,
     expectedTotal: open.reduce((s, r) => s + r.expected_profit, 0),
-    realizedTotal,
+    expectedClosedTotal: comparison.expectedTotal,
+    realizedTotal: comparison.realizedTotal,
+    realizedDelta: comparison.delta,
+    realizationPct: comparison.realizationPct,
     ...performance,
     avgRealizedMarginPct: closed.length
       ? closed.reduce((s, r) => s + (r.realized_margin_pct ?? 0), 0) / closed.length
