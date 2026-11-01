@@ -130,8 +130,7 @@ export default async function PaperPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Callout tone="neutral" title="Perché il realizzato può differire dall'atteso">
-          Tra apertura e chiusura il book cambia. Il realizzato ricalcola i proventi sul bid corrente, sottrae la fee taker di vendita, il buffer e l&apos;eventuale
-          fee di rete: è la stessa formula del motore applicata al momento dell&apos;uscita, non una stima separata.
+          Tra apertura e chiusura il book cambia. La quantità è già al netto dell&apos;eventuale fee di trasferimento contabilizzata all&apos;apertura. Il realizzato ricalcola i proventi sul bid corrente e sottrae la fee taker di vendita e il buffer, senza addebitare due volte il trasferimento.
         </Callout>
         <Callout tone="warn" title="Cosa non è">
           Il paper trading non allena l&apos;esecuzione reale: non modella la latenza dell&apos;ordine, il rifiuto del venue o il parziale riempimento oltre il book

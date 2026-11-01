@@ -52,8 +52,8 @@ npm run scan       # scansione headless (cron / verifica CLI)
 ## Cosa funziona davvero
 
 - **Dati di mercato reali**: ticker e order book pubblici di Kraken (`api.kraken.com`), Coinbase Exchange (`api.exchange.coinbase.com`) e Bybit V5 Spot (host EEA predefinito `api.bybit.eu`), senza credenziali. Bybit è solo market-data: commissioni non configurate, quindi i segnali che la coinvolgono richiedono una fee confermata dall'utente. L'idoneità regionale EEA va verificata prima dell'uso in produzione.
-- **Motore di arbitraggio**: VWAP di profondità su entrambe le gambe, fee taker, buffer, costi di trasferimento, controllo di staleness, sizing ottimale su più taglie. 18 test automatici coprono i casi critici, inclusa la contabilizzazione della fee di trasferimento senza doppio conteggio.
-- **Paper trading**: apertura solo su segnali eseguibili, chiusura marcata al book live, confronto atteso/realizzato.
+- **Motore di arbitraggio**: VWAP di profondità su entrambe le gambe, fee taker, buffer, costi di trasferimento, controllo di staleness, sizing ottimale su più taglie. 19 test automatici coprono i casi critici, inclusa la contabilizzazione della fee di trasferimento senza doppio conteggio.
+- **Paper trading**: apertura solo su segnali eseguibili, chiusura marcata al book live, confronto atteso/realizzato. La fee di prelievo è già incorporata nella quantità netta all'apertura e non viene sottratta una seconda volta alla chiusura.
 - **Multi-tenant**: account, piani (FREE/PRO/PREMIUM con limiti applicati su scansioni e API key), branding per utente e globale.
 - **Affiliate Center**: 7 referral gestiti da database, modificabili dall'admin senza deploy.
 - **Sicurezza**: scrypt, sessioni revocabili, cookie httpOnly, CSRF same-origin, rate limiting, AES-256-GCM per le API key, audit log, segregazione per `user_id`.
