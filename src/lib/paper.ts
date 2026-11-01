@@ -2,6 +2,7 @@ import { newId } from "./crypto";
 import { all, getUserSettings, one, run } from "./db";
 import { evaluateOpportunity, walkBids } from "./engine/arbitrage";
 import { calculatePaperRealizedProfit } from "./engine/paper";
+import { calculatePaperPerformance } from "./engine/paper-analytics";
 import { resolveFee } from "./engine/fees";
 import { audit } from "./audit";
 import { buildCostModel, getBook, opportunityById } from "./market";
@@ -178,26 +179,13 @@ export function paperStats(userId: string): PaperStats {
   const open = rows.filter((r) => r.status === "open");
   const closed = rows.filter((r) => r.status === "closed");
   const realizedTotal = closed.reduce((s, r) => s + (r.realized_profit ?? 0), 0);
-  const wins = closed.filter((r) => (r.realized_profit ?? 0) > 0).length;
-  const losses = closed.filter((r) => (r.realized_profit ?? 0) < 0).length;
-  const profits = closed.map((r) => r.realized_profit ?? 0).filter(Number.isFinite);
-  const winningProfits = profits.filter((value) => value > 0);
-  const losingProfits = profits.filter((value) => value < 0);
-  const grossWins = winningProfits.reduce((sum, value) => sum + value, 0);
-  const grossLosses = Math.abs(losingProfits.reduce((sum, value) => sum + value, 0));
+  const performance = calculatePaperPerformance(closed.map((r) => r.realized_profit ?? 0));
   return {
     openCount: open.length,
     closedCount: closed.length,
     expectedTotal: open.reduce((s, r) => s + r.expected_profit, 0),
     realizedTotal,
-    wins,
-    losses,
-    winRate: closed.length ? (wins / closed.length) * 100 : null,
-    profitFactor: grossLosses > 0 ? grossWins / grossLosses : null,
-    averageWin: winningProfits.length ? grossWins / winningProfits.length : null,
-    averageLoss: losingProfits.length ? -grossLosses / losingProfits.length : null,
-    bestTrade: profits.length ? Math.max(...profits) : null,
-    worstTrade: profits.length ? Math.min(...profits) : null,
+    ...performance,
     avgRealizedMarginPct: closed.length
       ? closed.reduce((s, r) => s + (r.realized_margin_pct ?? 0), 0) / closed.length
       : null,
