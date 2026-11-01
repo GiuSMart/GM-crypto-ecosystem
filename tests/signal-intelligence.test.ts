@@ -19,7 +19,7 @@ test("signal intelligence groups only identical routes and measures persistence"
   const rows = summarizeSignalPersistence([
     observation("2026-10-01T10:00:00.000Z"),
     observation("2026-10-01T10:03:00.000Z", { net_profit: 1 }),
-    observation("2026-10-01T10:07:00.000Z", { executable: 0, margin_pct: -0.02 }),
+    observation("2026-10-01T10:07:00.000Z", { executable: 0, margin_pct: -0.02, net_profit: -1.5 }),
     observation("2026-10-01T10:08:00.000Z", { buy_venue: "bybit" }),
   ]);
 
