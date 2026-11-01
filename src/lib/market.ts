@@ -78,7 +78,10 @@ const MAX_PAIRS = 10;
 
 export async function getBoard(quote: Quote): Promise<Board> {
   return cached(`board:${quote}`, 4000, async () => {
-    const universe = (await pairUniverse(quote)).slice(0, MAX_PAIRS);
+    // Fetch tickers for the full discovered universe before applying the display cap.
+    // pairUniverse is alphabetically sorted; slicing it here biased every scan toward
+    // the first symbols instead of the pairs with the best current market spread.
+    const universe = await pairUniverse(quote);
     const pairs = universe.map((u) => u.pair);
     const errors: string[] = [];
 
@@ -114,7 +117,7 @@ export async function getBoard(quote: Quote): Promise<Board> {
       });
     }
     rows.sort((a, b) => b.grossSpreadPct - a.grossSpreadPct);
-    return { quote, ts: Date.now(), rows, errors };
+    return { quote, ts: Date.now(), rows: rows.slice(0, MAX_PAIRS), errors };
   });
 }
 
