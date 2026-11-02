@@ -194,11 +194,56 @@ test("prima del cambio password ogni mutazione amministrativa è bloccata e non 
   assert.equal(wallet.status, 403);
   assert.equal(wallet.json?.error, GATE_MESSAGE);
 
+  // Impostazioni del motore: possono cambiare soglie e liveTradingEnabled, quindi
+  // devono passare dallo stesso gate delle altre mutazioni.
+  const settings = await api("/api/settings", {
+    method: "PATCH",
+    cookie: bootstrapCookie,
+    body: { minMarginPct: 1.23, notionalQuote: 700, liveTradingEnabled: true },
+  });
+  assert.equal(settings.status, 403);
+  assert.equal(settings.json?.error, GATE_MESSAGE);
+
   // La protezione deve fermare l'effetto, non solo la risposta.
   const planAfter = dbGet<{ price_cents: number }>("SELECT price_cents FROM plans WHERE id = 'premium'");
   assert.equal(planAfter?.price_cents, planBefore.price_cents, "il prezzo del piano non deve cambiare");
   assert.equal(dbGet<{ n: number }>("SELECT COUNT(*) AS n FROM fee_overrides")?.n, 0);
   assert.equal(dbGet<{ n: number }>("SELECT COUNT(*) AS n FROM wallets")?.n, 0);
+  assert.equal(
+    dbGet<{ n: number }>("SELECT COUNT(*) AS n FROM user_settings")?.n,
+    0,
+    "nessuna impostazione deve essere scritta, incluso liveTradingEnabled",
+  );
+});
+
+test("una seconda sessione o un cookie inventato non aggirano il gate", async () => {
+  const second = await api("/api/auth/login", {
+    method: "POST",
+    body: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
+  });
+  assert.equal(second.status, 200);
+  assert.ok(second.cookie.startsWith(`${COOKIE_NAME}=`));
+  assert.notEqual(second.cookie, bootstrapCookie, "deve essere una sessione distinta");
+
+  const viaSecondSession = await api("/api/settings", {
+    method: "PATCH",
+    cookie: second.cookie,
+    body: { notionalQuote: 900, liveTradingEnabled: true },
+  });
+  assert.equal(viaSecondSession.status, 403);
+  assert.equal(viaSecondSession.json?.error, GATE_MESSAGE);
+
+  const forged = await api("/api/settings", {
+    method: "PATCH",
+    cookie: `${COOKIE_NAME}=token-inventato`,
+    body: { notionalQuote: 900 },
+  });
+  assert.equal(forged.status, 401);
+
+  const anonymous = await api("/api/settings", { method: "PATCH", body: { notionalQuote: 900 } });
+  assert.equal(anonymous.status, 401);
+
+  assert.equal(dbGet<{ n: number }>("SELECT COUNT(*) AS n FROM user_settings")?.n, 0);
 });
 
 test("una password attuale errata o una nuova password debole non aprono il gate", async () => {
@@ -281,6 +326,25 @@ test("dopo il cambio password le operazioni autorizzate funzionano davvero", asy
   const list = await api("/api/wallets", { cookie: rotatedCookie });
   assert.equal(list.status, 200);
   assert.equal(list.json?.data?.length, 1);
+
+  // Le impostazioni devono ora essere accettate e persistite davvero.
+  const settings = await api("/api/settings", {
+    method: "PATCH",
+    cookie: rotatedCookie,
+    body: { minMarginPct: 0.55, notionalQuote: 700, liveTradingEnabled: false },
+  });
+  assert.equal(settings.status, 200);
+  assert.equal(settings.json?.ok, true);
+
+  const saved = dbGet<{ value: string }>(
+    "SELECT value FROM user_settings WHERE key = 'engine' AND user_id = (SELECT id FROM users WHERE email = ?)",
+    ADMIN_EMAIL,
+  );
+  assert.ok(saved, "le impostazioni devono essere persistite in user_settings");
+  const stored = JSON.parse(saved.value) as { minMarginPct: number; notionalQuote: number; liveTradingEnabled: boolean };
+  assert.equal(stored.minMarginPct, 0.55);
+  assert.equal(stored.notionalQuote, 700);
+  assert.equal(stored.liveTradingEnabled, false, "il trading live resta spento in questa build");
 });
 
 test("la sessione precedente è revocata e il nuovo login non richiede più il cambio", async () => {
