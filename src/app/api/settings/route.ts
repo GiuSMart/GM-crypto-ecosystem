@@ -1,19 +1,19 @@
-import { jsonError, jsonOk, numberFrom } from "@/lib/api";
+import { guardedMutation, jsonError, jsonOk, numberFrom } from "@/lib/api";
 import { audit } from "@/lib/audit";
-import { clientMeta, currentUser } from "@/lib/auth";
-import { crossSite } from "@/lib/api";
+import { clientMeta } from "@/lib/auth";
 import { QUOTES, type EngineSettings } from "@/lib/config";
 import { saveBranding, saveSettings, saveUserSettings } from "@/lib/db";
 import { saveNetworkFee } from "@/lib/network-fees";
-import { rateLimit } from "@/lib/rate-limit";
 import { run } from "@/lib/db";
 
 export async function PATCH(req: Request) {
-  const user = await currentUser();
-  if (!user) return jsonError("Autenticazione richiesta.", 401);
-  if (crossSite(req)) return jsonError("Richiesta cross-site bloccata.", 403);
+  // Same guard as every other mutation: 401 when signed out, 403 cross-site, 403
+  // while the bootstrap password is still active, then per-user rate limiting.
+  // Settings can switch liveTradingEnabled, so skipping this helper would be a
+  // way around the password-change gate.
+  const { user, error } = await guardedMutation(req, { limit: 20, windowMs: 60_000 });
+  if (error || !user) return error ?? jsonError("Autenticazione richiesta.", 401);
   const { ip } = await clientMeta();
-  if (!rateLimit(`settings:${user.id}`, 20, 60_000).ok) return jsonError("Troppe modifiche. Attendi un minuto.", 429);
 
   let body: Record<string, unknown>;
   try {

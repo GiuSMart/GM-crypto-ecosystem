@@ -201,7 +201,6 @@ export function evaluateOpportunity({ pair, buyBook, sellBook, notionalQuote, co
   const proceedsAfterFee = sell.filledQuote - sellFee;
 
   let transferCost = 0;
-  let transferPct = 0;
   if (cost.transferMode === "transfer") {
     if (reasons.some((reason) => reason.includes("Costo di trasferimento on-chain"))) {
       transferCost = Number.NaN;
@@ -210,7 +209,6 @@ export function evaluateOpportunity({ pair, buyBook, sellBook, notionalQuote, co
     } else {
       transferCost = networkFeeBase * sell.avgPrice;
     }
-    transferPct = buySpend > 0 && Number.isFinite(transferCost) ? (transferCost / buySpend) * 100 : 0;
   }
 
   const bufferCost = proceedsAfterFee * (cost.safetyBufferPct / 100);
@@ -226,7 +224,24 @@ export function evaluateOpportunity({ pair, buyBook, sellBook, notionalQuote, co
 
   const dataAgeMs = now - Math.min(buyBook.ts, sellBook.ts);
 
-  const breakevenSpreadPct = round(cost.buyFeePct + cost.sellFeePct + cost.safetyBufferPct + transferPct, 6);
+  // Exact break-even: the top-of-book spread at which net profit is zero.
+  //   soldQty * price * (1 - sellFee) * (1 - buffer) = buySpend
+  // Solved for price and expressed against the buy top of book, so the value is
+  // directly comparable with grossSpreadPct. The previous additive estimate
+  // (fees + buffer + transfer share) ignored the multiplicative fees and the
+  // quantity removed by the withdrawal fee, so it understated break-even.
+  const breakevenKnown =
+    (cost.transferMode === "prefunded" || Number.isFinite(transferCost)) && topAsk > 0 && buySpend > 0;
+  const breakevenQty =
+    cost.transferMode === "transfer" ? buy.filledBase - networkFeeBase : buy.filledBase;
+  const breakevenSpreadPct =
+    breakevenKnown && breakevenQty > 0
+      ? round(
+          (buySpend / (breakevenQty * (1 - cost.sellFeePct / 100) * (1 - cost.safetyBufferPct / 100)) / topAsk - 1) *
+            100,
+          6,
+        )
+      : Number.NaN;
 
   if (buyBook.venue === sellBook.venue) reasons.push("Le due gambe cadono sulla stessa venue.");
   if (notionalQuote < cost.minNotionalQuote) {
