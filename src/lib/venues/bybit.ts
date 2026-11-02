@@ -2,6 +2,7 @@ import { ASSETS, QUOTES } from "../config";
 import { throttled } from "../rate-limit";
 import type { Book } from "../engine/arbitrage";
 import { toLevels, type Ticker, type VenueAdapter } from "./types";
+import { assertAllowedVenueBase } from "./hosts";
 
 /**
  * Bybit V5 public Spot market data.
@@ -9,12 +10,10 @@ import { toLevels, type Ticker, type VenueAdapter } from "./types";
  * restrictions for the EEA site's third-party-app connection flow.
  * Override only with an explicitly supported HTTPS host.
  */
-const BASE = process.env.BYBIT_API_BASE?.trim() || "https://api.bybit.eu";
-const ALLOWED_HOSTS = new Set(["api.bybit.eu", "api.bytick.eu", "api-testnet.bybit.eu", "api.bybit.com", "api.bytick.com", "api-testnet.bybit.com"]);
-const parsedBase = new URL(BASE);
-if (parsedBase.protocol !== "https:" || !ALLOWED_HOSTS.has(parsedBase.hostname) || parsedBase.pathname !== "/") {
-  throw new Error("BYBIT_API_BASE must be an approved HTTPS Bybit API host.");
-}
+const BASE = assertAllowedVenueBase(
+  process.env.BYBIT_API_BASE?.trim() || "https://api.bybit.eu",
+  "BYBIT_API_BASE",
+).origin;
 
 const SPACING = 250;
 const UA = "GM-Crypto-Arbitrage-AI/0.2 (+public Spot market data only)";
@@ -45,6 +44,8 @@ async function bybitGet<T>(path: string): Promise<BybitEnvelope<T>> {
     const res = await fetch(`${BASE}/v5/market/${path}`, {
       headers: { "User-Agent": UA, Accept: "application/json" },
       cache: "no-store",
+      // Refuse redirects: a 3xx could move a "public Bybit" call to another host.
+      redirect: "error",
       signal: AbortSignal.timeout(9000),
     });
     if (!res.ok) throw new Error(`Bybit HTTP ${res.status} su ${path}`);

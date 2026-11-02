@@ -2,8 +2,10 @@ import { ASSETS, QUOTES } from "../config";
 import { throttled } from "../rate-limit";
 import type { Book } from "../engine/arbitrage";
 import { toLevels, type Ticker, type VenueAdapter } from "./types";
+import { assertAllowedVenueBase } from "./hosts";
 
-const BASE = "https://api.kraken.com/0/public";
+const ORIGIN = assertAllowedVenueBase("https://api.kraken.com").origin;
+const BASE = `${ORIGIN}/0/public`;
 const UA = "GM-Crypto-Arbitrage-AI/0.1 (+research prototype; public market data only)";
 
 /**
@@ -18,6 +20,8 @@ async function krakenGet<T>(path: string): Promise<T> {
     const res = await fetch(`${BASE}/${path}`, {
       headers: { "User-Agent": UA, Accept: "application/json" },
       cache: "no-store",
+      // Refuse redirects: a 3xx could move a "public Kraken" call to another host.
+      redirect: "error",
       signal: AbortSignal.timeout(9000),
     });
     if (!res.ok) throw new Error(`Kraken HTTP ${res.status}`);
