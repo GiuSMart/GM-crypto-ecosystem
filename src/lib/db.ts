@@ -1,8 +1,10 @@
+import fs from "node:fs";
+import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { SCHEMA_SQL } from "./schema";
 import { DEFAULT_SETTINGS, PLANS, REFERRALS, type EngineSettings } from "./config";
-import { hashPassword, newId, randomToken } from "./crypto";
-import { dbFile } from "./paths";
+import { hashPassword, newId, passwordProblems, randomToken } from "./crypto";
+import { dataDir, dbFile } from "./paths";
 
 const globalForDb = globalThis as unknown as { __gmDb?: DatabaseSync };
 
@@ -24,18 +26,48 @@ export const DEFAULT_BRANDING: Branding = {
   footer: "© 2026 GM CRYPTO ARBITRAGE AI — software originale, licenza propria.",
 };
 
+/** Where a generated bootstrap password is stored, once, with 0600 permissions. */
+const INITIAL_CREDENTIALS_FILE = "initial-credentials.txt";
+
 /**
- * Seeds must never ship a password inside the repository.
- * GM_ADMIN_PASSWORD / GM_DEMO_PASSWORD win; otherwise a random one is generated
- * at first boot and printed to the server console exactly once.
+ * Seeds must never ship a password inside the repository, and a generated
+ * password must never be written to the server log: logs are collected, shipped
+ * to third-party services and read by people who are not the operator.
+ *
+ * GM_ADMIN_PASSWORD / GM_DEMO_PASSWORD win. Otherwise a random password is
+ * generated, persisted once in the data directory with 0600 permissions, and
+ * only its file path reaches the console.
  */
 function bootstrapPassword(kind: "admin" | "demo", email: string): string {
   const generated = `Gm-${randomToken(9).replace(/[^A-Za-z0-9]/g, "").slice(0, 10)}-a1!`;
+  const file = path.join(dataDir(), INITIAL_CREDENTIALS_FILE);
+  try {
+    fs.appendFileSync(file, `${new Date().toISOString()}\t${kind}\t${email}\t${generated}\n`, { mode: 0o600 });
+    fs.chmodSync(file, 0o600);
+  } catch (error) {
+    // Fail closed: never fall back to printing the secret.
+    throw new Error(
+      `Impossibile salvare la credenziale iniziale in ${file} (${(error as Error).message}). ` +
+        `Imposta GM_${kind.toUpperCase()}_PASSWORD e riprova.`,
+    );
+  }
   console.warn(
-    `[seed] Nessuna GM_${kind.toUpperCase()}_PASSWORD impostata: password iniziale per ${email} → ${generated}\n` +
-      `[seed] Annotala ora, non verrà mostrata di nuovo. Cambiala al primo login.`,
+    `[seed] Nessuna GM_${kind.toUpperCase()}_PASSWORD impostata: credenziale iniziale per ${email} salvata in ${file} (permessi 0600).`,
+  );
+  console.warn(
+    "[seed] Il valore non viene scritto nei log. Cambiala al primo accesso e cancella il file.",
   );
   return generated;
+}
+
+/** Warn about a weak operator-provided password without ever echoing its value. */
+function warnOnWeakPassword(kind: "admin" | "demo", password: string) {
+  const problems = passwordProblems(password);
+  if (!problems.length) return;
+  console.warn(
+    `[seed] GM_${kind.toUpperCase()}_PASSWORD non rispetta la policy (${problems.join(", ")}): ` +
+      "l'account resta utilizzabile, ma va cambiata prima di esporre l'applicazione.",
+  );
 }
 
 function seed(db: DatabaseSync) {
@@ -103,16 +135,21 @@ function seed(db: DatabaseSync) {
      VALUES(?,?,?,?,?,?,?,?,?)`,
   );
 
-  // Bootstrap administrator. Password must be changed at first login.
+  // Bootstrap administrator. must_change_password = 1 is enforced server-side by
+  // guardedMutation(), so this account can only rotate its password first.
   if (!exists("usr_admin")) {
     const adminEmail = (process.env.GM_ADMIN_EMAIL ?? "admin@gmarbitrage.ai").toLowerCase();
-    const adminPassword = process.env.GM_ADMIN_PASSWORD ?? bootstrapPassword("admin", adminEmail);
+    const adminFromEnv = process.env.GM_ADMIN_PASSWORD;
+    if (adminFromEnv) warnOnWeakPassword("admin", adminFromEnv);
+    const adminPassword = adminFromEnv ?? bootstrapPassword("admin", adminEmail);
     userStmt.run("usr_admin", adminEmail, hashPassword(adminPassword), "admin", "premium", "Amministratore GM", "active", 1, now);
   }
 
   // A demo client isolates the multi-tenant paths for local testing.
   if (!exists("usr_demo")) {
-    const demoPassword = process.env.GM_DEMO_PASSWORD ?? bootstrapPassword("demo", "cliente@demo.it");
+    const demoFromEnv = process.env.GM_DEMO_PASSWORD;
+    if (demoFromEnv) warnOnWeakPassword("demo", demoFromEnv);
+    const demoPassword = demoFromEnv ?? bootstrapPassword("demo", "cliente@demo.it");
     userStmt.run("usr_demo", "cliente@demo.it", hashPassword(demoPassword), "client", "free", "Cliente Demo", "active", 0, now);
   }
 

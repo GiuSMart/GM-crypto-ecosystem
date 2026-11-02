@@ -86,8 +86,9 @@ export default async function LoginPage() {
           <div className="mt-4 rounded-xl border border-[rgba(245,181,68,0.3)] bg-[rgba(245,181,68,0.07)] px-3.5 py-3 text-[11px] leading-relaxed text-warn">
             <strong className="font-semibold">Primo avvio:</strong> nessuna password è inclusa nel codice.
             <div className="mt-1 text-muted">
-              L&apos;account admin ({demoEmail}) usa la password impostata in <code>GM_ADMIN_PASSWORD</code> oppure quella generata e
-              stampata una sola volta nel log del server. Cambiala al primo accesso.
+              L&apos;account admin ({demoEmail}) usa la password impostata in <code>GM_ADMIN_PASSWORD</code> oppure quella generata
+              al primo avvio e salvata in <code>data/initial-credentials.txt</code> (permessi 0600): il valore non compare mai
+              nei log. Cambiala al primo accesso.
             </div>
           </div>
         </div>
