@@ -18,7 +18,8 @@ const INSTRUMENT_TTL = 30 * 60 * 1000;
 type OkxEnvelope<T> = {
   code: string;
   msg: string;
-  data: T;
+  /** Every OKX REST endpoint used here returns a list, even for one instrument. */
+  data: T[];
 };
 
 type Instrument = {
@@ -56,7 +57,7 @@ async function instruments(): Promise<InstrumentIndex> {
     return instrumentCache.index;
   }
 
-  const response = await okxGet<Instrument[]>("/api/v5/public/instruments?instType=SPOT");
+  const response = await okxGet<Instrument>("/api/v5/public/instruments?instType=SPOT");
   const instIdByPair = new Map<string, string>();
   const pairByInstId = new Map<string, string>();
 
@@ -100,7 +101,7 @@ export const okx: VenueAdapter = {
     const wanted = new Set(pairs.filter((pair) => index.instIdByPair.has(pair)));
     if (!wanted.size) return new Map();
 
-    const response = await okxGet<OkxTicker[]>("/api/v5/market/tickers?instType=SPOT");
+    const response = await okxGet<OkxTicker>("/api/v5/market/tickers?instType=SPOT");
     const receivedAt = Date.now();
     const out = new Map<string, Ticker>();
 
