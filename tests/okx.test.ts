@@ -203,3 +203,35 @@ test("okx: a one-sided book is never returned as a usable price", async () => {
   await assert.rejects(() => okx.book("BTC/USDT"), /book incompleto/);
   globalThis.fetch = globalFetch;
 });
+
+test("okx: public requests refuse redirects instead of following them", async () => {
+  const redirects: (RequestRedirect | undefined)[] = [];
+  let mode: "ok" | "redirect" = "ok";
+
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const href = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    const url = new URL(href);
+    redirects.push(init?.redirect as RequestRedirect | undefined);
+    assert.equal(new Headers(init?.headers).has("Authorization"), false);
+
+    if (mode === "redirect") {
+      // Exactly what the runtime raises for a 3xx when redirect: "error" is set.
+      throw new TypeError("fetch failed: unexpected redirect");
+    }
+    if (url.pathname.endsWith("/public/instruments")) {
+      return new Response(JSON.stringify(edgeOk([
+        { instId: "BTC-USDT", baseCcy: "BTC", quoteCcy: "USDT", state: "live" },
+      ])), { status: 200 });
+    }
+    return new Response(JSON.stringify(edgeOk([{ asks: [["65010", "1"]], bids: [["65000", "1"]], ts: String(Date.now()) }])), { status: 200 });
+  }) as typeof fetch;
+
+  await okx.book("BTC/USDT");
+  assert.ok(redirects.length > 0);
+  assert.ok(redirects.every((value) => value === "error"), "every request must set redirect: error");
+
+  mode = "redirect";
+  await assert.rejects(() => okx.book("BTC/USDT"), /unexpected redirect/);
+
+  globalThis.fetch = globalFetch;
+});

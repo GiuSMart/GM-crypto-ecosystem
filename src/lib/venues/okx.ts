@@ -42,6 +42,10 @@ async function okxGet<T>(path: string): Promise<OkxEnvelope<T>> {
     const res = await fetch(`${BASE}${path}`, {
       headers: { "User-Agent": UA, Accept: "application/json" },
       cache: "no-store",
+      // A redirect would silently move a "public OKX EEA" request to another host
+      // (eea.okx.com answers 302 -> www.okx.com on non-API paths, and www.okx.com
+      // serves the same payloads). Fail instead of following it.
+      redirect: "error",
       signal: AbortSignal.timeout(9000),
     });
     if (!res.ok) throw new Error(`OKX HTTP ${res.status} su ${path}`);
