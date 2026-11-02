@@ -48,6 +48,7 @@ npm test           # test del motore (node:test)
 npm run typecheck  # tsc --noEmit
 npm run scan       # scansione headless singola
 GM_WORKER_ENABLED=true npm run worker # worker server continuo (una sola istanza)
+GM_OKX_SMOKE=true npm run smoke:okx # smoke test live opzionale OKX (sola lettura)
 ```
 
 ## Cosa funziona davvero
@@ -80,6 +81,7 @@ GM_WORKER_ENABLED=true npm run worker # worker server continuo (una sola istanza
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — livelli, modello dati, sicurezza, scala, migrazione Postgres
 - [`docs/PHASES.md`](docs/PHASES.md) — stato reale fase per fase, con costi e limiti
 - [`docs/API.md`](docs/API.md) — endpoint interni e payload
+- [docs/OKX_SMOKE.md](docs/OKX_SMOKE.md) — smoke test live opzionale OKX (sola lettura, fuori dalla CI)
 
 ## Licenze delle dipendenze
 
