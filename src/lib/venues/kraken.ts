@@ -29,11 +29,11 @@ async function krakenGet<T>(path: string): Promise<T> {
 
 type AssetPairEntry = { altname: string; wsname?: string; base: string; quote: string; status: string };
 type PairIndex = {
-  /** wsname ("BTC/USD") -> Kraken altname ("XBTUSD") */
+  /** normalised pair ("BTC/USD") -> Kraken altname ("XBTUSD") */
   altnameByWs: Map<string, string>;
-  /** Kraken result key ("XXBTZUSD") -> wsname */
+  /** Kraken result key ("XXBTZUSD") -> normalised pair ("BTC/USD") */
   wsByKey: Map<string, string>;
-  /** wsname -> altname, restricted to assets/quotes we monitor */
+  /** normalised pair ("BTC/EUR") -> altname, restricted to assets/quotes we monitor */
   supported: string[];
 };
 
@@ -57,14 +57,17 @@ async function getPairIndex(): Promise<PairIndex> {
     if (entry.status !== "online") continue;
     const wsname = entry.wsname; // e.g. "BTC/USD"
     if (!wsname) continue;
-    altnameByWs.set(wsname, entry.altname);
-    wsByKey.set(key, wsname);
     const [base, quote] = wsname.split("/");
+    // Kraken keeps legacy prefixes in wsname (XBT/EUR, XDG/USD). Normalise once so the
+    // discovery list, the ticker map and the book lookup all agree on BTC/EUR.
+    const pair = `${normaliseBase(base)}/${quote}`;
+    altnameByWs.set(pair, entry.altname);
+    wsByKey.set(key, pair);
     if (
       (ASSETS as readonly string[]).includes(normaliseBase(base)) &&
       (QUOTES as readonly string[]).includes(quote)
     ) {
-      supported.push(`${normaliseBase(base)}/${quote}`);
+      supported.push(pair);
     }
   }
   const index: PairIndex = { altnameByWs, wsByKey, supported: [...new Set(supported)] };
@@ -114,12 +117,26 @@ export const kraken: VenueAdapter = {
     );
     const entry = Object.values(result)[0];
     if (!entry) throw new Error(`Kraken: order book vuoto per ${pair}`);
+
+    const receivedAt = Date.now();
+    // Kraken stamps every level with the snapshot time in Unix seconds. Validating that
+    // value instead of trusting only the local clock keeps a cached or replayed response
+    // from being accepted as fresh.
+    const exchangeTs = Number(entry.asks[0]?.[2] ?? entry.bids[0]?.[2]) * 1000;
+    if (!Number.isFinite(exchangeTs) || exchangeTs <= 0) {
+      throw new Error("Kraken: timestamp del book mancante o non valido");
+    }
+    if (exchangeTs > receivedAt + 5000 || receivedAt - exchangeTs > 30_000) {
+      throw new Error("Kraken: snapshot order book troppo vecchio o con timestamp anomalo");
+    }
+
     const book: Book = {
       venue: "kraken",
       pair,
       asks: toLevels(entry.asks, "asks"),
       bids: toLevels(entry.bids, "bids"),
-      ts: Date.now(),
+      // Snapshot time advertised by Kraken: an old book must look old to the engine.
+      ts: exchangeTs,
     };
     if (!book.asks.length || !book.bids.length) throw new Error(`Kraken: book incompleto per ${pair}`);
     return book;
