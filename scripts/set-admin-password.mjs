@@ -31,6 +31,7 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { DatabaseSync } from "node:sqlite";
+import { dataDir, dbFile } from "./lib/runtime-paths.mjs";
 import { resolveBaseUrl } from "./lib/transfer-safety.mjs";
 
 const args = process.argv.slice(2);
@@ -40,7 +41,9 @@ const opt = (name, fallback = null) => {
 };
 const flag = (name) => args.includes(`--${name}`);
 
-const CURRENT_FILE = opt("current-file", path.join("data", ".bootstrap-admin"));
+const DATA_DIR = dataDir();
+const DB_FILE = dbFile();
+const CURRENT_FILE = opt("current-file", path.join(DATA_DIR, ".bootstrap-admin"));
 const KEEP_FILE = flag("keep-bootstrap-file");
 
 const fail = (msg) => {
@@ -132,8 +135,8 @@ function askHidden(question) {
 /** Local-only helper: find an admin address so the operator need not retype it. */
 function firstAdminFromLocalDb() {
   try {
-    if (!fs.existsSync("data/gm.db")) return null;
-    const db = new DatabaseSync("data/gm.db", { readOnly: true });
+    if (!fs.existsSync(DB_FILE)) return null;
+    const db = new DatabaseSync(DB_FILE, { readOnly: true });
     const row = db.prepare("SELECT email FROM users WHERE role = 'admin' ORDER BY created_at ASC").get();
     db.close();
     return row?.email ?? null;
@@ -175,7 +178,7 @@ async function post(urlPath, body, cookie) {
   return { status: res.status, json, cookie: cookieFrom(res) };
 }
 
-const email = opt("email") ?? firstAdminFromLocalDb() ?? fail("email non indicata e nessun admin trovato in data/gm.db");
+const email = opt("email") ?? firstAdminFromLocalDb() ?? fail("email non indicata e nessun admin trovato in " + DB_FILE);
 console.log(`account: ${email}`);
 console.log(`server:  ${BASE}`);
 
