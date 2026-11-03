@@ -113,6 +113,7 @@ export default async function AffiliatePage() {
 
                   <a
                     href={r.url}
+                    data-referral-id={r.id}
                     target="_blank"
                     rel="noreferrer noopener nofollow sponsored"
                     className="gm-btn-accent mt-3 w-full py-2.5 text-xs"
