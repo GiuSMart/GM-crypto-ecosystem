@@ -1,6 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import { SCHEMA_SQL } from "./schema";
-import { DEFAULT_SETTINGS, PLANS, REFERRALS, type EngineSettings } from "./config";
+import { DEFAULT_SETTINGS, PLANS, REFERRALS, REFERRAL_UNCLASSIFIED, type EngineSettings } from "./config";
 import { hashPassword, newId, randomToken } from "./crypto";
 import { dbFile } from "./paths";
 
@@ -70,10 +70,10 @@ function seed(db: DatabaseSync) {
     );
   });
 
-  // Referral catalogue
+  // Referral catalogue. Existing rows are never touched: OR IGNORE only fills gaps.
   const refStmt = db.prepare(
-    `INSERT OR IGNORE INTO referrals(id, platform, name, url, tagline, description, how_it_works, tutorial, terms, rewards, verified, affiliate_confirmed, accent, active, sort, updated_at)
-     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)`,
+    `INSERT OR IGNORE INTO referrals(id, platform, name, url, category, tagline, description, how_it_works, tutorial, terms, rewards, verified, affiliate_confirmed, accent, active, sort, updated_at)
+     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)`,
   );
   REFERRALS.forEach((r, i) => {
     refStmt.run(
@@ -81,6 +81,7 @@ function seed(db: DatabaseSync) {
       r.platform,
       r.name,
       r.url,
+      r.category,
       r.tagline,
       r.description,
       r.howItWorks,
@@ -122,10 +123,30 @@ function seed(db: DatabaseSync) {
   ).run(newId("sub"), "usr_demo", "free", "active", now, "Piano gratuito di default: nessun pagamento richiesto.");
 }
 
+/**
+ * Forward-only migrations for databases created before a column existed.
+ * Runs between SCHEMA_SQL (CREATE TABLE IF NOT EXISTS, which never alters an
+ * existing table) and seed(), so the seed INSERT always finds the column.
+ */
+function migrate(db: DatabaseSync) {
+  const columns = db.prepare("PRAGMA table_info(referrals)").all() as unknown as { name: string }[];
+  if (!columns.some((c) => c.name === "category")) {
+    db.exec(`ALTER TABLE referrals ADD COLUMN category TEXT NOT NULL DEFAULT '${REFERRAL_UNCLASSIFIED}'`);
+  }
+
+  // Rows saved before categories existed, plus any row with an empty label, get
+  // the seeded category when their id is known, otherwise the fallback bucket.
+  // The WHERE clause makes this idempotent: a category an admin already chose is never overwritten.
+  const backfill = db.prepare("UPDATE referrals SET category = ? WHERE id = ? AND (category IS NULL OR category = '')");
+  REFERRALS.forEach((r) => backfill.run(r.category, r.id));
+  db.prepare("UPDATE referrals SET category = ? WHERE category IS NULL OR category = ''").run(REFERRAL_UNCLASSIFIED);
+}
+
 export function getDb(): DatabaseSync {
   if (globalForDb.__gmDb) return globalForDb.__gmDb;
   const db = new DatabaseSync(dbFile());
   db.exec(SCHEMA_SQL);
+  migrate(db);
   seed(db);
   globalForDb.__gmDb = db;
   return db;

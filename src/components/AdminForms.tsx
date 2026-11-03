@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { REFERRAL_CATEGORIES } from "@/lib/config";
 
 const admin = async (body: Record<string, unknown>) => {
   const res = await fetch("/api/admin", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -146,6 +147,7 @@ export function ReferralForm({
     platform: string;
     name: string;
     url: string;
+    category: string | null;
     tagline: string | null;
     description: string | null;
     how_it_works: string | null;
@@ -160,6 +162,7 @@ export function ReferralForm({
     id: initial?.id ?? "",
     platform: initial?.platform ?? "",
     name: initial?.name ?? "",
+    category: initial?.category ?? REFERRAL_CATEGORIES[0],
     url: initial?.url ?? "",
     tagline: initial?.tagline ?? "",
     description: initial?.description ?? "",
@@ -188,6 +191,13 @@ export function ReferralForm({
         <input className="gm-input text-xs" placeholder="Piattaforma" value={form.platform} onChange={(e) => setForm((f) => ({ ...f, platform: e.target.value }))} required />
         <input className="gm-input text-xs" placeholder="Nome" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
       </div>
+      <select className="gm-input text-xs" value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} required>
+        {REFERRAL_CATEGORIES.map((c) => (
+          <option key={c} value={c}>
+            {c}
+          </option>
+        ))}
+      </select>
       <input className="gm-input text-xs" placeholder="https://link-referral" value={form.url} onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))} required />
       <input className="gm-input text-xs" placeholder="Tagline" value={form.tagline} onChange={(e) => setForm((f) => ({ ...f, tagline: e.target.value }))} />
       <textarea className="gm-input text-xs" rows={2} placeholder="Descrizione" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />

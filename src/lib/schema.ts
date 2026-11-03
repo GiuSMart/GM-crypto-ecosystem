@@ -167,6 +167,7 @@ CREATE TABLE IF NOT EXISTS referrals (
   platform     TEXT NOT NULL,
   name         TEXT NOT NULL,
   url          TEXT NOT NULL,
+  category     TEXT NOT NULL DEFAULT 'Altro / Non classificato',   -- see REFERRAL_CATEGORIES in config.ts
   tagline      TEXT,
   description  TEXT,
   how_it_works TEXT,

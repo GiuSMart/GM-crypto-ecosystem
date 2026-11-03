@@ -2,7 +2,9 @@ import { guardedMutation, jsonError, jsonOk, numberFrom } from "@/lib/api";
 import { audit } from "@/lib/audit";
 import { clientMeta } from "@/lib/auth";
 import { newId } from "@/lib/crypto";
-import { run } from "@/lib/db";
+import { REFERRAL_CATEGORIES } from "@/lib/config";
+import { all, run } from "@/lib/db";
+import { findDuplicateReferral, isKnownCategory, validateReferralUrl } from "@/lib/referrals";
 import { grantLiveAuthorization, revokeLiveAuthorization } from "@/lib/live";
 import { setUserPlan, updatePlanPricing } from "@/lib/plans";
 
@@ -81,16 +83,36 @@ export async function POST(req: Request) {
 
       case "upsert_referral": {
         const id = body.id ? String(body.id) : newId("ref");
-        const platform = String(body.platform ?? "").slice(0, 60);
-        const name = String(body.name ?? "").slice(0, 80);
-        const url = String(body.url ?? "");
-        if (!platform || !name || !/^https:\/\//i.test(url)) return jsonError("Piattaforma, nome e URL https sono obbligatori.");
+        const platform = String(body.platform ?? "").trim().slice(0, 60);
+        const name = String(body.name ?? "").trim().slice(0, 80);
+        const category = String(body.category ?? "").trim();
+        if (!platform || !name) return jsonError("Piattaforma e nome sono obbligatori.");
+
+        // Categories are an ordered allowlist: free text here would break the
+        // grouping on the Affiliate Center, so an unknown label is rejected
+        // with the list of the ones the page knows how to sort.
+        if (!isKnownCategory(category)) {
+          return jsonError(`Categoria non valida. Scegli tra: ${REFERRAL_CATEGORIES.join(" · ")}`);
+        }
+
+        const check = validateReferralUrl(body.url);
+        if (!check.ok) return jsonError(check.error);
+
+        // A link already in the catalogue is never duplicated and never overwritten.
+        // Compared on the normalised form: an equivalent URL written differently
+        // must still be caught.
+        const duplicate = findDuplicateReferral(all<{ id: string; name: string; url: string }>("SELECT id, name, url FROM referrals"), id, check.url);
+        if (duplicate) {
+          return jsonError(`Link già presente in questo Affiliate Center: « ${duplicate.name} ». Nessuna voce esistente è stata modificata.`);
+        }
+
         const tutorial = Array.isArray(body.tutorial) ? (body.tutorial as unknown[]).map((t) => String(t).slice(0, 300)) : [];
         run(
-          `INSERT INTO referrals(id, platform, name, url, tagline, description, how_it_works, tutorial, terms, rewards, verified, affiliate_confirmed, accent, active, sort, updated_at)
-           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          `INSERT INTO referrals(id, platform, name, url, category, tagline, description, how_it_works, tutorial, terms, rewards, verified, affiliate_confirmed, accent, active, sort, updated_at)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
            ON CONFLICT(id) DO UPDATE SET
-             platform = excluded.platform, name = excluded.name, url = excluded.url, tagline = excluded.tagline,
+             platform = excluded.platform, name = excluded.name, url = excluded.url, category = excluded.category,
+             tagline = excluded.tagline,
              description = excluded.description, how_it_works = excluded.how_it_works, tutorial = excluded.tutorial,
              terms = excluded.terms, rewards = excluded.rewards, verified = excluded.verified,
              affiliate_confirmed = excluded.affiliate_confirmed, accent = excluded.accent, active = excluded.active,
@@ -98,7 +120,8 @@ export async function POST(req: Request) {
           id,
           platform,
           name,
-          url,
+          check.url,
+          category,
           String(body.tagline ?? "").slice(0, 160) || null,
           String(body.description ?? "").slice(0, 1200) || null,
           String(body.howItWorks ?? "").slice(0, 1200) || null,
@@ -112,7 +135,7 @@ export async function POST(req: Request) {
           numberFrom(body.sort, 100, 0, 9999),
           new Date().toISOString(),
         );
-        audit(user.id, "admin.upsert_referral", id, { platform, name }, ip);
+        audit(user.id, "admin.upsert_referral", id, { platform, name, category }, ip);
         return jsonOk({ id });
       }
 
