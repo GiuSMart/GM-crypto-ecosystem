@@ -31,6 +31,7 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { DatabaseSync } from "node:sqlite";
+import { dbFile } from "./lib/runtime-paths.mjs";
 import { compareSnapshot, normaliseUrl, referralAdminBody, resolveBaseUrl, storedFor } from "./lib/transfer-safety.mjs";
 
 const args = process.argv.slice(2);
@@ -78,9 +79,9 @@ const TO_API = {
 };
 
 function exportCatalogue(out) {
-  const dbFile = path.join("data", "gm.db");
-  if (!fs.existsSync(dbFile)) die(`${dbFile} non esiste: esporta dall'ambiente che contiene le offerte`);
-  const db = new DatabaseSync(dbFile, { readOnly: true });
+  const file = dbFile();
+  if (!fs.existsSync(file)) die(file + " non esiste: esporta dall’ambiente che contiene le offerte");
+  const db = new DatabaseSync(file, { readOnly: true });
   const rows = db.prepare("SELECT * FROM referrals ORDER BY sort ASC, name ASC").all();
   db.close();
   if (!rows.length) die("nessuna offerta da esportare");
