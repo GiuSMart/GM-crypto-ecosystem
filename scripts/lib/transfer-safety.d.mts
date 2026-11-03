@@ -29,5 +29,5 @@ export declare function storedFor(catalogue: readonly StoredReferral[], row: Sna
 export declare function compareSnapshot(
   rows: readonly SnapshotRow[],
   catalogue: readonly StoredReferral[],
-  published: ReadonlySet<string>,
+  published: ReadonlyMap<string, string>,
 ): { total: number; public: number; inactive: number; problems: SnapshotCheck[]; results: SnapshotCheck[] };
