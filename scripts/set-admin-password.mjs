@@ -20,6 +20,9 @@
  *
  * Options:
  *   --base <url>            default http://127.0.0.1:3001
+ *                           http è accettato solo su localhost, 127.0.0.1 e ::1;
+ *                           ogni altro host richiede https e una URL senza
+ *                           credenziali, query, fragment o percorso
  *   --email <address>       default: first admin row in the local database
  *   --current-file <path>   default data/.bootstrap-admin (removed after success)
  *   --keep-bootstrap-file   do not delete the current-file after success
@@ -28,6 +31,7 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { DatabaseSync } from "node:sqlite";
+import { resolveBaseUrl } from "./lib/transfer-safety.mjs";
 
 const args = process.argv.slice(2);
 const opt = (name, fallback = null) => {
@@ -36,7 +40,6 @@ const opt = (name, fallback = null) => {
 };
 const flag = (name) => args.includes(`--${name}`);
 
-const BASE = (opt("base", "http://127.0.0.1:3001") || "").replace(/\/$/, "");
 const CURRENT_FILE = opt("current-file", path.join("data", ".bootstrap-admin"));
 const KEEP_FILE = flag("keep-bootstrap-file");
 
@@ -44,6 +47,14 @@ const fail = (msg) => {
   console.error(`✗ ${msg}`);
   process.exit(1);
 };
+
+// Refuse a bad target before the current password is even read from disk.
+let BASE;
+try {
+  BASE = resolveBaseUrl(opt("base", "http://127.0.0.1:3001"));
+} catch (err) {
+  fail(`base URL rifiutata: ${err.message}`);
+}
 const ok = (msg) => console.log(`✓ ${msg}`);
 
 /**

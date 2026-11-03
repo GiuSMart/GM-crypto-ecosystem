@@ -54,6 +54,30 @@ node scripts/referrals-transfer.mjs verify \
 `--base` è obbligatorio in produzione: senza, il comando lavora sullo sviluppo locale
 (`http://127.0.0.1:3001`). L'email può arrivare da `GM_ADMIN_EMAIL` invece che da `--email`.
 
+## Dove è consentito inviare la password
+
+Entrambi gli script (`referrals-transfer.mjs` e `set-admin-password.mjs`) accettano `--base`
+solo se rispetta queste regole, controllate prima di leggere qualsiasi credenziale:
+
+| Regola | Motivo |
+| --- | --- |
+| `http://` ammesso **solo** su `localhost`, `127.0.0.1`, `::1` | fuori dal loopback la password viaggerebbe in chiaro |
+| ogni altro host richiede `https://` | — |
+| nessun `utente:password@` nella URL | l'API usa il login, non il basic auth |
+| nessuna query string, fragment o percorso | gli script aggiungono da soli `/api/...`: `https://host/app` produrrebbe `/app/api/...` |
+
+Una `--base` non valida termina subito con `✗ base URL rifiutata: ...` e nessuna richiesta di rete.
+Esempio: `node scripts/referrals-transfer.mjs verify --in x.json --base https://app.example.com`.
+
+## Cosa può fare un import
+
+Lo snapshot è **dato, non istruzione**: prima di ogni richiesta il payload viene ricostruito da
+una allowlist di campi (`scripts/lib/transfer-safety.mjs`), con `action: "upsert_referral"`
+scritto dal codice. Un file che contiene `"action": "delete_referral"` (o `revoke_live`,
+`set_role`, campi estranei come `userId`) viene importato come normale upsert: la pagina e
+l'audit log mostrano `admin.upsert_referral`, nessuna voce viene cancellata. Lo stesso vale per
+la rotazione password, che parla solo con `/api/auth/*` e non segue redirect.
+
 ## Perché non crea duplicati
 
 - Ogni riga porta il proprio `id`, e `upsert_referral` è un `INSERT ... ON CONFLICT(id)`.
@@ -89,6 +113,9 @@ pannello (`active = false`), che la toglie dalla pagina senza perdere i dati.
 2. Apri `/affiliate` da account normale: i gruppi sono nell'ordine canonico e i link si aprono
    in una nuova scheda.
 3. Le voci create a mano restano `verified = false` finché non vengono controllate: nessun
-   beneficio viene promesso agli utenti prima di quella verifica.
+   beneficio viene promesso agli utenti prima di quella verifica. Se è il proprietario ad
+   attestare link, attribuzione e promozione, si spunta «confermato dal proprietario» nel
+   modulo referral del pannello (`affiliate_confirmed = 1`): la scheda mostra «confermato dal
+   proprietario» e resta distinta da una verifica indipendente delle condizioni.
 4. Controlla che il numero di utenti dell'ambiente di destinazione non sia cambiato (segno che
    non è stato copiato il database sbagliato).

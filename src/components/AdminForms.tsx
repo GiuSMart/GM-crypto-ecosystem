@@ -154,6 +154,7 @@ export function ReferralForm({
     terms: string | null;
     rewards: string | null;
     verified: number;
+    affiliate_confirmed: number;
     active: number;
   };
 }) {
@@ -170,6 +171,9 @@ export function ReferralForm({
     terms: initial?.terms ?? "",
     rewards: initial?.rewards ?? "",
     verified: Boolean(initial?.verified),
+    // Owner statement, not our own check: the two flags travel separately all
+    // the way to the badge on the Affiliate Center.
+    affiliateConfirmed: Boolean(initial?.affiliate_confirmed),
     active: initial ? Boolean(initial.active) : true,
   });
   const [busy, setBusy] = useState(false);
@@ -209,6 +213,17 @@ export function ReferralForm({
       <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted">
         <label className="flex items-center gap-1.5">
           <input type="checkbox" checked={form.verified} onChange={(e) => setForm((f) => ({ ...f, verified: e.target.checked }))} /> verificato
+        </label>
+        <label
+          className="flex items-center gap-1.5"
+          title="Link, attribuzione e promozione dichiarati dal proprietario: non è una verifica indipendente delle condizioni della piattaforma"
+        >
+          <input
+            type="checkbox"
+            checked={form.affiliateConfirmed}
+            onChange={(e) => setForm((f) => ({ ...f, affiliateConfirmed: e.target.checked }))}
+          />{" "}
+          confermato dal proprietario
         </label>
         <label className="flex items-center gap-1.5">
           <input type="checkbox" checked={form.active} onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))} /> attivo

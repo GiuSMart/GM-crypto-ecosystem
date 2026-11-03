@@ -29,6 +29,7 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { DatabaseSync } from "node:sqlite";
+import { normaliseUrl, referralAdminBody, resolveBaseUrl } from "./lib/transfer-safety.mjs";
 
 const args = process.argv.slice(2);
 const cmd = args[0];
@@ -42,22 +43,17 @@ const die = (msg) => {
   process.exit(1);
 };
 
-const BASE = (opt("base", "http://127.0.0.1:3001") || "").replace(/\/$/, "");
+// Where to send an admin password is decided once, before anything is read from
+// disk, so a mistyped or hostile --base stops here instead of leaking a session.
+let BASE;
+try {
+  BASE = resolveBaseUrl(opt("base", "http://127.0.0.1:3001"));
+} catch (err) {
+  die(`base URL rifiutata: ${err.message}`);
+}
 const EMAIL = opt("email", process.env.GM_ADMIN_EMAIL ?? null);
 
-/**
- * The admin API stores the URL in its normalised form (URL#href), which inserts
- * a slash before a root query: "https://x.io?a=1" becomes "https://x.io/?a=1".
- * Comparisons use the same normalisation so a pre-normalisation snapshot still
- * matches what the page renders.
- */
-const norm = (url) => {
-  try {
-    return new URL(url).href;
-  } catch {
-    return url;
-  }
-};
+const norm = normaliseUrl;
 
 /* ------------------------------------------------------------------ */
 /* Catalogue I/O                                                       */
@@ -120,6 +116,14 @@ function loadSnapshot(file) {
   const data = JSON.parse(fs.readFileSync(file, "utf8"));
   const rows = Array.isArray(data) ? data : data.referrals;
   if (!Array.isArray(rows) || rows.length === 0) die("snapshot vuoto: niente da importare");
+  // Rows are read from a file, so they are checked before anything is labelled
+  // or posted: a malformed entry must fail here, not halfway through an import.
+  rows.forEach((row, i) => {
+    if (!row || typeof row !== "object" || Array.isArray(row)) die(`riga ${i + 1} non valida: atteso un oggetto`);
+    if (typeof row.url !== "string" || !row.url.trim()) die(`riga ${i + 1} senza url`);
+    if (typeof row.name !== "string" || !row.name.trim()) die(`riga ${i + 1} senza nome`);
+    if (row.id !== undefined && typeof row.id !== "string") die(`riga ${i + 1}: id non testuale`);
+  });
   return rows;
 }
 
@@ -253,11 +257,22 @@ if (command === "export") {
   for (const row of rows) {
     const existsAlready = live.has(norm(row.url));
     const label = existsAlready ? "aggiorna" : "nuova   ";
+    // The body is rebuilt from an allowlist, so a stray "action" (or any other
+    // field) in the snapshot file can never reach the admin API. Building it in
+    // the dry run too means a malformed row is reported before anything writes.
+    let body;
+    try {
+      body = referralAdminBody(row);
+    } catch (err) {
+      failed++;
+      console.log(`   ✗ ${label} ${String(row?.id ?? "?").padEnd(18)} ${err.message}`);
+      continue;
+    }
     if (!apply) {
       console.log(`   [dry-run] ${label} ${row.id.padEnd(26)} ${row.name}`);
       continue;
     }
-    const { status, json } = await adminPost(cookie, { action: "upsert_referral", ...row });
+    const { status, json } = await adminPost(cookie, body);
     if (status === 200 && json?.ok) {
       if (existsAlready) updated++;
       else created++;
