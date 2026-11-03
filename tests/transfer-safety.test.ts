@@ -112,6 +112,21 @@ test("a remote host always needs https", () => {
   assert.equal(resolveBaseUrl("https://app.example.com"), "https://app.example.com");
 });
 
+test("a remote host is only reached on the standard https port", () => {
+  const refused = ["https://app.example.com:8443", "https://app.example.com:3001", "https://app.example.com:80", "https://app.example.com:4430"];
+  for (const base of refused) assert.throws(() => resolveBaseUrl(base), /porta .* non consentita/, `${base} è stato accettato`);
+  // The URL API drops a default port, so an explicit :443 is accepted and normalised away.
+  assert.equal(resolveBaseUrl("https://app.example.com:443"), "https://app.example.com");
+  assert.equal(resolveBaseUrl("https://app.example.com"), "https://app.example.com");
+});
+
+test("the loopback interface keeps custom ports, including https", () => {
+  assert.equal(resolveBaseUrl("http://127.0.0.1:3001"), "http://127.0.0.1:3001");
+  assert.equal(resolveBaseUrl("http://localhost:8080"), "http://localhost:8080");
+  assert.equal(resolveBaseUrl("https://127.0.0.1:8443"), "https://127.0.0.1:8443");
+  assert.equal(resolveBaseUrl("https://[::1]:3001"), "https://[::1]:3001");
+});
+
 test("base URLs with credentials, query, fragment or path are refused", () => {
   const refused: [string, RegExp][] = [
     ["https://user:pass@app.example.com", /credenziali/],

@@ -63,6 +63,7 @@ solo se rispetta queste regole, controllate prima di leggere qualsiasi credenzia
 | --- | --- |
 | `http://` ammesso **solo** su `localhost`, `127.0.0.1`, `::1` | fuori dal loopback la password viaggerebbe in chiaro |
 | ogni altro host richiede `https://` | — |
+| fuori dal loopback è ammessa solo la porta `443` (anche esplicita) | `https://host:8443` evita le regole TLS della rete e di solito non è l'istanza che vuoi aggiornare |
 | nessun `utente:password@` nella URL | l'API usa il login, non il basic auth |
 | nessuna query string, fragment o percorso | gli script aggiungono da soli `/api/...`: `https://host/app` produrrebbe `/app/api/...` |
 

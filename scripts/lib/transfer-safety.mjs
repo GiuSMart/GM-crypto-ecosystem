@@ -6,9 +6,12 @@
  * CLI:
  *
  *   1. the target URL. The scripts log in and send a password, so plain HTTP is
- *      only acceptable on the loopback interface; anything remote must be HTTPS
- *      and must be a bare origin (no credentials, query, fragment or path), since
- *      the scripts append their own /api/... paths.
+ *      only acceptable on the loopback interface, anything remote must be HTTPS
+ *      on the standard port 443, and the URL must be a bare origin (no
+ *      credentials, query, fragment or path), since the scripts append their
+ *      own /api/... paths. A non-standard port is refused because it usually
+ *      points at a hand-run proxy or tunnel that is not the instance the
+ *      operator means to update.
  *   2. the payload. A snapshot is data, never instructions: only the referral
  *      fields below are forwarded, so a file cannot smuggle in a different
  *      action (delete_referral, revoke_live, ...) and make the import do
@@ -17,6 +20,9 @@
 
 /** Hosts where an unencrypted connection stays on the machine. */
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+
+/** The only port a remote instance may be reached on. */
+const REMOTE_PORT = "443";
 
 /**
  * Validates `--base` and returns the origin to talk to.
@@ -40,8 +46,13 @@ export function resolveBaseUrl(raw) {
     throw new Error(`la base URL non deve contenere un percorso (${url.pathname})`);
   }
   const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
-  if (url.protocol === "http:" && !LOOPBACK_HOSTS.has(host)) {
+  const loopback = LOOPBACK_HOSTS.has(host);
+  if (url.protocol === "http:" && !loopback) {
     throw new Error(`http è consentito solo su localhost, 127.0.0.1 e ::1: per ${url.host} usa https`);
+  }
+  // URL drops a default port, so an explicit :443 arrives here as "".
+  if (!loopback && url.port !== "" && url.port !== REMOTE_PORT) {
+    throw new Error(`porta ${url.port} non consentita per ${url.hostname}: fuori dal loopback usa la porta ${REMOTE_PORT}`);
   }
   return url.origin;
 }
