@@ -159,3 +159,21 @@ pannello (`active = false`), che la toglie dalla pagina senza perdere i dati.
    proprietario» e resta distinta da una verifica indipendente delle condizioni.
 4. Controlla che il numero di utenti dell'ambiente di destinazione non sia cambiato (segno che
    non è stato copiato il database sbagliato).
+
+
+## Percorsi dati configurabili
+
+Gli script operativi usano gli stessi override dell'applicazione:
+- `GM_DB_PATH`: percorso completo del database SQLite, se impostato.
+- `GM_DATA_DIR`: directory dati usata come default per `gm.db` e per il file bootstrap della password.
+- Se nessuna variabile è impostata, viene usata la directory `data/` nella root del progetto.
+
+Esempio:
+
+```bash
+GM_DATA_DIR=/var/lib/gm node scripts/referrals-transfer.mjs export
+# oppure, per un database collocato separatamente:
+GM_DB_PATH=/mnt/sqlite/gm-production.db node scripts/referrals-transfer.mjs export
+```
+
+`GM_DB_PATH` ha precedenza sul percorso derivato da `GM_DATA_DIR`. Questi override non cambiano la destinazione HTTP dell'API: quella resta definita da `--base`.
