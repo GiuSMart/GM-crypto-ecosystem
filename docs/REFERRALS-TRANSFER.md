@@ -109,7 +109,7 @@ la rotazione password, che parla solo con `/api/auth/*` e non segue redirect.
 
 `import --apply` e `verify` non si fidano della sola pagina pubblica: leggono il catalogo reale
 dalla read model `GET /api/admin` e confrontano, riga per riga, **id, link e stato**; poi
-controllano cosa mostra `/affiliate`.
+controllano cosa mostra `/affiliate`: ogni link referral porta `data-referral-id`, e la verifica associa quell'ID al suo `href` nello stesso elemento `<a>`. Un URL presente in un link generico o nella scheda di un'altra referral non può far risultare pubblicata la riga sbagliata.
 
 | Esito | Significato |
 | --- | --- |
