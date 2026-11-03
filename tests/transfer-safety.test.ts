@@ -181,7 +181,7 @@ const stored = (id: string, url: string, active: number) => ({ id, url: normalis
 
 test("a disabled offer is a success, not a missing link", () => {
   const rows = [{ id: "spenta", name: "Spenta", url: "https://x.io/off", active: false }];
-  const report = compareSnapshot(rows, [stored("spenta", "https://x.io/off", 0)], new Set());
+  const report = compareSnapshot(rows, [stored("spenta", "https://x.io/off", 0)], new Map());
 
   assert.equal(report.inactive, 1);
   assert.deepEqual(report.problems, []);
@@ -190,7 +190,7 @@ test("a disabled offer is a success, not a missing link", () => {
 
 test("an active offer missing from the page is reported", () => {
   const rows = [{ id: "attiva", name: "Attiva", url: "https://x.io/on", active: true }];
-  const report = compareSnapshot(rows, [stored("attiva", "https://x.io/on", 1)], new Set());
+  const report = compareSnapshot(rows, [stored("attiva", "https://x.io/on", 1)], new Map());
 
   assert.equal(report.results[0].status, "non-pubblicata");
   assert.equal(report.problems.length, 1);
@@ -198,7 +198,7 @@ test("an active offer missing from the page is reported", () => {
 
 test("an offer switched off but still on the page is reported", () => {
   const rows = [{ id: "spenta", name: "Spenta", url: "https://x.io/off", active: false }];
-  const report = compareSnapshot(rows, [stored("spenta", "https://x.io/off", 0)], new Set([normaliseUrl("https://x.io/off")]));
+  const report = compareSnapshot(rows, [stored("spenta", "https://x.io/off", 0)], new Map([["spenta", normaliseUrl("https://x.io/off")]]));
 
   assert.equal(report.results[0].status, "spenta-visibile");
   assert.equal(report.problems.length, 1);
@@ -206,14 +206,14 @@ test("an offer switched off but still on the page is reported", () => {
 
 test("the same link stored under another id is reported", () => {
   const rows = [{ id: "rinominata", name: "Rinominata", url: "https://x.io/a" }];
-  const report = compareSnapshot(rows, [stored("vecchia", "https://x.io/a", 1)], new Set([normaliseUrl("https://x.io/a")]));
+  const report = compareSnapshot(rows, [stored("vecchia", "https://x.io/a", 1)], new Map([["vecchia", normaliseUrl("https://x.io/a")]]));
 
   assert.equal(report.results[0].status, "id");
   assert.match(report.results[0].detail, /vecchia/);
 });
 
 test("a row absent from the destination is reported, even with the page open", () => {
-  const report = compareSnapshot([{ id: "nuova", name: "Nuova", url: "https://x.io/n" }], [], new Set());
+  const report = compareSnapshot([{ id: "nuova", name: "Nuova", url: "https://x.io/n" }], [], new Map());
   assert.equal(report.results[0].status, "assente");
   assert.equal(report.problems.length, 1);
 });
@@ -222,15 +222,44 @@ test("a snapshot without ids is matched by link", () => {
   // Hand-written snapshots may omit the id: the API then reuses the stored row,
   // so verification has to recognise it by its link instead of calling it new.
   const rows = [{ name: "Senza id", url: "https://x.io/a" }];
-  const report = compareSnapshot(rows, [stored("ref-x", "https://x.io/a", 1)], new Set([normaliseUrl("https://x.io/a")]));
+  const report = compareSnapshot(rows, [stored("ref-x", "https://x.io/a", 1)], new Map([["ref-x", normaliseUrl("https://x.io/a")]]));
 
   assert.deepEqual(report.problems, []);
   assert.equal(report.public, 1);
 });
 
+
+test("a matching URL on an unrelated anchor or another referral does not count", () => {
+  const rows = [{ id: "expected", name: "Expected", url: "https://x.io/shared", active: true }];
+  const unrelatedAnchor = compareSnapshot(
+    rows,
+    [stored("expected", "https://x.io/shared", 1)],
+    new Map(),
+  );
+  assert.equal(unrelatedAnchor.results[0].status, "non-pubblicata");
+
+  const otherReferral = compareSnapshot(
+    rows,
+    [stored("expected", "https://x.io/shared", 1)],
+    new Map([["different-id", normaliseUrl("https://x.io/shared")]]),
+  );
+  assert.equal(otherReferral.results[0].status, "non-pubblicata");
+});
+
+test("a referral id rendered with a different URL does not count as published", () => {
+  const rows = [{ id: "expected", name: "Expected", url: "https://x.io/right", active: true }];
+  const report = compareSnapshot(
+    rows,
+    [stored("expected", "https://x.io/right", 1)],
+    new Map([["expected", normaliseUrl("https://x.io/wrong")]]),
+  );
+  assert.equal(report.results[0].status, "non-pubblicata");
+  assert.match(report.results[0].detail, /URL diverso/);
+});
+
 test("an absent active flag keeps the stored state, like the API does", () => {
   const rows = [{ id: "x", name: "X", url: "https://x.io/a" }];
-  const report = compareSnapshot(rows, [stored("x", "https://x.io/a", 0)], new Set());
+  const report = compareSnapshot(rows, [stored("x", "https://x.io/a", 0)], new Map());
 
   assert.equal(report.results[0].status, "spenta");
   assert.deepEqual(report.problems, []);
@@ -238,6 +267,6 @@ test("an absent active flag keeps the stored state, like the API does", () => {
 
 test("SQL style flags are read the same way in verification", () => {
   const rows = [{ id: "x", name: "X", url: "https://x.io/a", active: 1 }];
-  const report = compareSnapshot(rows, [stored("x", "https://x.io/a", 1)], new Set([normaliseUrl("https://x.io/a")]));
+  const report = compareSnapshot(rows, [stored("x", "https://x.io/a", 1)], new Map([["x", normaliseUrl("https://x.io/a")]]));
   assert.equal(report.results[0].status, "pubblicata");
 });
