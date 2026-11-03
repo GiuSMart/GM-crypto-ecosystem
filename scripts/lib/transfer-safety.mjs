@@ -168,13 +168,11 @@ export function storedFor(catalogue, row) {
 
 /**
  * Compares an exported snapshot with the destination, using the admin read
- * model (id, link and flags) plus the links actually rendered on /affiliate.
+ * model (id, link and flags) plus the referral anchors rendered on /affiliate.
  *
- * Checking the public page alone reported every deliberately disabled offer as
- * missing, because the page never shows one, and it could not tell a link that
- * stayed on a different row from a link that was updated. A row is only
- * "pubblicata" when the stored link has the same id, the expected activity and
- * the expected visibility.
+ * Public-page visibility is keyed by the explicit data-referral-id attribute,
+ * not by a global set of hrefs: an unrelated link (or the same URL rendered for
+ * another referral) can never make this row look published.
  */
 export function compareSnapshot(rows, catalogue, published) {
   const results = rows.map((row) => {
@@ -195,12 +193,19 @@ export function compareSnapshot(rows, catalogue, published) {
     // the API merges it, so the expectation is read the same way here.
     const wanted = flagFrom(row.active);
     const active = wanted === null ? stored.active === 1 : wanted;
-    const shown = published.has(url);
+    const publishedUrl = published.get(stored.id);
+    const shown = publishedUrl === url;
     if (active && !shown) {
-      return { id, name, url, status: "non-pubblicata", detail: "attiva nel catalogo ma assente da /affiliate" };
+      const detail = publishedUrl === undefined
+        ? "attiva nel catalogo ma assente da /affiliate"
+        : `ID presente in /affiliate ma con URL diverso: ${publishedUrl}`;
+      return { id, name, url, status: "non-pubblicata", detail };
     }
-    if (!active && shown) {
-      return { id, name, url, status: "spenta-visibile", detail: "disattivata ma ancora presente in /affiliate" };
+    if (!active && publishedUrl !== undefined) {
+      const detail = shown
+        ? "disattivata ma ancora presente in /affiliate"
+        : `ID disattivato ancora renderizzato con URL diverso: ${publishedUrl}`;
+      return { id, name, url, status: "spenta-visibile", detail };
     }
     return { id, name, url, status: active ? "pubblicata" : "spenta", detail: "" };
   });
