@@ -9,6 +9,20 @@ import { setUserPlan, updatePlanPricing } from "@/lib/plans";
 
 export const runtime = "nodejs";
 
+/**
+ * Read model for the transfer scripts: the catalogue as stored, ids and flags
+ * included. Verification cannot use the public page alone, because a disabled
+ * offer is absent from it by design and would look like a failed import.
+ */
+export async function GET(req: Request) {
+  const { user, error } = await guardedMutation(req, { limit: 60, windowMs: 60_000, adminOnly: true });
+  if (error || !user) return error ?? jsonError("Permesso negato.", 403);
+  const referrals = all(
+    "SELECT id, platform, name, url, category, active, verified, affiliate_confirmed, sort, updated_at FROM referrals ORDER BY sort ASC, name ASC",
+  );
+  return jsonOk({ referrals }, { headers: { "Cache-Control": "no-store" } });
+}
+
 export async function POST(req: Request) {
   const { user, error } = await guardedMutation(req, { limit: 30, windowMs: 60_000, adminOnly: true });
   if (error || !user) return error ?? jsonError("Permesso negato.", 403);
@@ -81,7 +95,10 @@ export async function POST(req: Request) {
       }
 
       case "upsert_referral": {
-        const id = body.id ? String(body.id) : newId("ref");
+        // Trimmed before the lookup: a whitespace-only id is truthy but matches no
+        // stored row, so it used to create a referral with a blank primary key.
+        const wantedId = typeof body.id === "string" ? body.id.trim() : "";
+        const id = wantedId || newId("ref");
         // The upsert replaces every column, so the stored row is read first and the
         // request only overrides what it mentions: a partial update must never
         // clear verification flags or re-enable an offer that was switched off.

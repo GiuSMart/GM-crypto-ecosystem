@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normaliseUrl, referralAdminBody, resolveBaseUrl, SNAPSHOT_FIELDS } from "../scripts/lib/transfer-safety.mjs";
+import { compareSnapshot, normaliseUrl, referralAdminBody, resolveBaseUrl, SNAPSHOT_FIELDS } from "../scripts/lib/transfer-safety.mjs";
 
 /* -------------------------------------------------------------------------- */
 /* An import can upsert referrals and nothing else                             */
@@ -171,4 +171,73 @@ test("normalisation matches the form the admin API stores", () => {
   assert.equal(normaliseUrl("https://revolut.com/referral?code=1"), "https://revolut.com/referral?code=1");
   assert.equal(normaliseUrl("https://business.revolut.com/signup?promo=X&ext=Y"), "https://business.revolut.com/signup?promo=X&ext=Y");
   assert.equal(normaliseUrl("non una url"), "non una url");
+});
+
+/* -------------------------------------------------------------------------- */
+/* Verification: catalogue + rendered page, ids and disabled offers included   */
+/* -------------------------------------------------------------------------- */
+
+const stored = (id: string, url: string, active: number) => ({ id, url: normaliseUrl(url), active });
+
+test("a disabled offer is a success, not a missing link", () => {
+  const rows = [{ id: "spenta", name: "Spenta", url: "https://x.io/off", active: false }];
+  const report = compareSnapshot(rows, [stored("spenta", "https://x.io/off", 0)], new Set());
+
+  assert.equal(report.inactive, 1);
+  assert.deepEqual(report.problems, []);
+  assert.equal(report.results[0].status, "spenta");
+});
+
+test("an active offer missing from the page is reported", () => {
+  const rows = [{ id: "attiva", name: "Attiva", url: "https://x.io/on", active: true }];
+  const report = compareSnapshot(rows, [stored("attiva", "https://x.io/on", 1)], new Set());
+
+  assert.equal(report.results[0].status, "non-pubblicata");
+  assert.equal(report.problems.length, 1);
+});
+
+test("an offer switched off but still on the page is reported", () => {
+  const rows = [{ id: "spenta", name: "Spenta", url: "https://x.io/off", active: false }];
+  const report = compareSnapshot(rows, [stored("spenta", "https://x.io/off", 0)], new Set([normaliseUrl("https://x.io/off")]));
+
+  assert.equal(report.results[0].status, "spenta-visibile");
+  assert.equal(report.problems.length, 1);
+});
+
+test("the same link stored under another id is reported", () => {
+  const rows = [{ id: "rinominata", name: "Rinominata", url: "https://x.io/a" }];
+  const report = compareSnapshot(rows, [stored("vecchia", "https://x.io/a", 1)], new Set([normaliseUrl("https://x.io/a")]));
+
+  assert.equal(report.results[0].status, "id");
+  assert.match(report.results[0].detail, /vecchia/);
+});
+
+test("a row absent from the destination is reported, even with the page open", () => {
+  const report = compareSnapshot([{ id: "nuova", name: "Nuova", url: "https://x.io/n" }], [], new Set());
+  assert.equal(report.results[0].status, "assente");
+  assert.equal(report.problems.length, 1);
+});
+
+test("a snapshot without ids is matched by link", () => {
+  // Hand-written snapshots may omit the id: the API then reuses the stored row,
+  // so verification has to recognise it by its link instead of calling it new.
+  const rows = [{ name: "Senza id", url: "https://x.io/a" }];
+  const report = compareSnapshot(rows, [stored("ref-x", "https://x.io/a", 1)], new Set([normaliseUrl("https://x.io/a")]));
+
+  assert.deepEqual(report.problems, []);
+  assert.equal(report.public, 1);
+});
+
+test("an absent active flag keeps the stored state, like the API does", () => {
+  const rows = [{ id: "x", name: "X", url: "https://x.io/a" }];
+  const report = compareSnapshot(rows, [stored("x", "https://x.io/a", 0)], new Set());
+
+  assert.equal(report.results[0].status, "spenta");
+  assert.deepEqual(report.problems, []);
+});
+
+test("SQL style flags are read the same way in verification", () => {
+  const rows = [{ id: "x", name: "X", url: "https://x.io/a", active: 1 }];
+  const report = compareSnapshot(rows, [stored("x", "https://x.io/a", 1)], new Set([normaliseUrl("https://x.io/a")]));
+  assert.equal(report.results[0].status, "pubblicata");
 });

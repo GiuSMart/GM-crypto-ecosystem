@@ -146,3 +146,70 @@ export function normaliseUrl(url) {
     return url;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Verifying an import                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The catalogue row a snapshot row corresponds to: matched by id first, then by
+ * link. A hand-written snapshot may omit the id, and the same offer must still
+ * be recognised instead of being counted as missing.
+ */
+export function storedFor(catalogue, row) {
+  const id = typeof row?.id === "string" ? row.id.trim() : "";
+  if (id) {
+    const byId = catalogue.find((stored) => stored.id === id);
+    if (byId) return byId;
+  }
+  const url = normaliseUrl(String(row?.url ?? ""));
+  return catalogue.find((stored) => normaliseUrl(String(stored.url ?? "")) === url) ?? null;
+}
+
+/**
+ * Compares an exported snapshot with the destination, using the admin read
+ * model (id, link and flags) plus the links actually rendered on /affiliate.
+ *
+ * Checking the public page alone reported every deliberately disabled offer as
+ * missing, because the page never shows one, and it could not tell a link that
+ * stayed on a different row from a link that was updated. A row is only
+ * "pubblicata" when the stored link has the same id, the expected activity and
+ * the expected visibility.
+ */
+export function compareSnapshot(rows, catalogue, published) {
+  const results = rows.map((row) => {
+    const id = typeof row?.id === "string" && row.id.trim() ? row.id.trim() : null;
+    const name = typeof row?.name === "string" ? row.name : "";
+    const url = normaliseUrl(String(row?.url ?? ""));
+    const stored = storedFor(catalogue, row);
+    if (!stored) {
+      return { id, name, url, status: "assente", detail: "nessuna voce corrispondente nel catalogo di destinazione" };
+    }
+    if (normaliseUrl(String(stored.url ?? "")) !== url) {
+      return { id, name, url, status: "url", detail: `la voce salvata punta a ${stored.url}` };
+    }
+    if (id && stored.id !== id) {
+      return { id, name, url, status: "id", detail: `link salvato sotto l'id ${stored.id}` };
+    }
+    // An absent `active` keeps whatever the destination already had, exactly as
+    // the API merges it, so the expectation is read the same way here.
+    const wanted = flagFrom(row.active);
+    const active = wanted === null ? stored.active === 1 : wanted;
+    const shown = published.has(url);
+    if (active && !shown) {
+      return { id, name, url, status: "non-pubblicata", detail: "attiva nel catalogo ma assente da /affiliate" };
+    }
+    if (!active && shown) {
+      return { id, name, url, status: "spenta-visibile", detail: "disattivata ma ancora presente in /affiliate" };
+    }
+    return { id, name, url, status: active ? "pubblicata" : "spenta", detail: "" };
+  });
+  const problems = results.filter((r) => r.status !== "pubblicata" && r.status !== "spenta");
+  return {
+    total: results.length,
+    public: results.filter((r) => r.status === "pubblicata").length,
+    inactive: results.filter((r) => r.status === "spenta").length,
+    problems,
+    results,
+  };
+}

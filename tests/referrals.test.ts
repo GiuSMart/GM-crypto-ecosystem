@@ -100,29 +100,30 @@ test("empty labels fall back to the legacy bucket", () => {
 
 const row = (id: string, category: string | null, platform: string, sort = 100) => ({ id, category, platform, name: id, sort });
 
-test("offers are ordered by category, then platform", () => {
+test("sort decides the order, even between two different platforms", () => {
   const ordered = orderReferrals([
-    row("zeta", REFERRAL_CATEGORIES[1], "Aaa"),
-    row("alpha", REFERRAL_CATEGORIES[0], "Zzz"),
-    row("beta", REFERRAL_CATEGORIES[0], "Aaa"),
-    row("gamma", null, "Mmm"),
+    row("zeta", REFERRAL_CATEGORIES[1], "Aaa", 30),
+    row("alpha", REFERRAL_CATEGORIES[0], "Zzz", 5),
+    row("beta", REFERRAL_CATEGORIES[0], "Aaa", 20),
+    row("gamma", null, "Mmm", 40),
   ]);
 
   assert.deepEqual(
     ordered.map((r) => r.id),
-    ["beta", "alpha", "zeta", "gamma"],
+    ["alpha", "beta", "zeta", "gamma"],
   );
 });
 
-test("platform ordering is locale aware and sort breaks ties", () => {
+test("category, platform and name break a sort tie", () => {
   const ordered = orderReferrals([
-    row("same-b", REFERRAL_CATEGORIES[0], "Coinbase", 20),
-    row("same-a", REFERRAL_CATEGORIES[0], "Coinbase", 10),
-    row("kraken", REFERRAL_CATEGORIES[0], "Kraken", 5),
+    row("kraken", REFERRAL_CATEGORIES[1], "Kraken", 100),
+    row("same-b", REFERRAL_CATEGORIES[0], "Coinbase", 100),
+    row("same-a", REFERRAL_CATEGORIES[0], "Coinbase", 100),
+    row("early", REFERRAL_CATEGORIES[1], "Aaa", 10),
   ]);
   assert.deepEqual(
     ordered.map((r) => r.id),
-    ["same-a", "same-b", "kraken"],
+    ["early", "same-a", "same-b", "kraken"],
   );
 });
 
@@ -148,6 +149,24 @@ test("grouping keeps every row and follows the canonical category order", () => 
   assert.deepEqual(
     groups.flatMap((g) => g.items.map((i) => i.id)),
     ["revolut", "kraken", "freebuff", "orphan"],
+  );
+});
+
+test("group order follows the categories even when a row has a lower sort", () => {
+  const groups = groupReferrals([
+    row("freebuff", REFERRAL_CATEGORIES[5], "Freebuff", 1),
+    row("revolut", REFERRAL_CATEGORIES[0], "Revolut", 900),
+    row("kraken", REFERRAL_CATEGORIES[1], "Kraken", 500),
+  ]);
+
+  assert.deepEqual(
+    groups.map((g) => g.category),
+    [REFERRAL_CATEGORIES[0], REFERRAL_CATEGORIES[1], REFERRAL_CATEGORIES[5]],
+  );
+  // Inside a section the owner's sort order still wins.
+  assert.deepEqual(
+    groups.map((g) => g.items.map((i) => i.id)),
+    [["revolut"], ["kraken"], ["freebuff"]],
   );
 });
 

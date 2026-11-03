@@ -44,6 +44,11 @@ Formato risposta: `{ ok: true, data: ... }` oppure `{ ok: false, error: "messagg
 
 ## Amministrazione (solo admin)
 
+`GET /api/admin` restituisce il catalogo referral così com'è salvato:
+`{ id, platform, name, url, category, active, verified, affiliate_confirmed, sort, updated_at }`,
+ordinato per `sort`. È la source of truth usata dagli script di trasferimento: la pagina
+`/affiliate` non può esserlo, perché non mostra mai un'offerta disattivata.
+
 `POST /api/admin` con `action`:
 
 - `assign_plan` `{ userId, planId }`

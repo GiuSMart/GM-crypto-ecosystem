@@ -101,6 +101,29 @@ la rotazione password, che parla solo con `/api/auth/*` e non segue redirect.
 - L'API rifiuta comunque un URL già presente con un altro id (confronto sull'URL normalizzato):
   quegli scarti vengono stampati come «rifiutate» e non bloccano le altre righe.
 - Il comando è ripetibile: eseguirlo due volte di fila produce `create: 0`.
+- `id` è facoltativo in uno snapshot scritto a mano: la riga viene riconosciuta dal link e
+  aggiorna quella esistente invece di essere rifiutata come duplicato. Un `id` vuoto o di soli
+  spazi viene ignorato, perché non identifica nulla (prima creava una voce con chiave bianca).
+
+## Come funziona la verifica
+
+`import --apply` e `verify` non si fidano della sola pagina pubblica: leggono il catalogo reale
+dalla read model `GET /api/admin` e confrontano, riga per riga, **id, link e stato**; poi
+controllano cosa mostra `/affiliate`.
+
+| Esito | Significato |
+| --- | --- |
+| `pubblicata` | la voce è nel catalogo ed è visibile in pagina |
+| `spenta` | la voce è nel catalogo con `active = 0`: **corretto** che non sia in pagina |
+| `assente` | la riga dello snapshot non esiste nella destinazione |
+| `url` | l'id esiste ma punta a un altro link |
+| `id` | lo stesso link è salvato sotto un altro id (riga ricreata invece che aggiornata) |
+| `non-pubblicata` | attiva nel catalogo ma non raggiungibile da `/affiliate` |
+| `spenta-visibile` | disattivata ma ancora presente in pagina |
+
+Il comando termina con codice `1` se compare uno qualsiasi degli ultimi cinque esiti, o se una
+riga viene rifiutata: è il segnale che userebbe una pipeline. Un'offerta spenta non fa più
+fallire la verifica, come invece accadeva confrontando solo gli URL della pagina.
 
 ## Dati preesistenti
 
@@ -125,7 +148,8 @@ pannello (`active = false`), che la toglie dalla pagina senza perdere i dati.
 
 ## Checklist dopo un import in produzione
 
-1. `verify` riporta `N/N` offerte pubblicate.
+1. `verify` termina con `✓ catalogo e pagina coerenti con lo snapshot` e riporta `N/N`
+   pubblicate più le eventuali voci spente (attese, non in pagina).
 2. Apri `/affiliate` da account normale: i gruppi sono nell'ordine canonico e i link si aprono
    in una nuova scheda.
 3. Le voci create a mano restano `verified = false` finché non vengono controllate: nessun

@@ -110,30 +110,39 @@ export type ReferralRecord = {
 };
 
 /**
- * Category (canonical order) → platform → sort → name.
- * Every input row is preserved: nothing is dropped, so no offer can disappear
- * just because its category is missing or unknown.
+ * `sort` first: it is the priority the owner sets in the panel, so it has to
+ * decide the order between two platforms too, not only between two ties.
+ * Category (canonical order) → platform → name then make the order stable and
+ * readable. Every input row is preserved: nothing is dropped, so no offer can
+ * disappear just because its category is missing or unknown.
  */
 export function orderReferrals<T extends ReferralRecord>(rows: readonly T[]): T[] {
   return [...rows].sort(
     (a, b) =>
+      a.sort - b.sort ||
       categoryRank(a.category) - categoryRank(b.category) ||
       a.platform.localeCompare(b.platform, "it") ||
-      a.sort - b.sort ||
       a.name.localeCompare(b.name, "it"),
   );
 }
 
-/** Rows grouped for rendering, groups following the canonical category order. */
+/**
+ * Rows grouped for rendering, groups following the canonical category order.
+ * The group order is computed from the category, not inherited from the row
+ * order: since rows are sorted by `sort` first, a section could otherwise jump
+ * to the top only because one of its offers has a low `sort` value.
+ */
 export function groupReferrals<T extends ReferralRecord>(rows: readonly T[]): { category: string; items: T[] }[] {
-  const groups = new Map<string, T[]>();
+  const groups = new Map<string, { rank: number; items: T[] }>();
   for (const row of orderReferrals(rows)) {
-    const key = categoryLabel(row.category);
-    const bucket = groups.get(key);
-    if (bucket) bucket.push(row);
-    else groups.set(key, [row]);
+    const category = categoryLabel(row.category);
+    const bucket = groups.get(category);
+    if (bucket) bucket.items.push(row);
+    else groups.set(category, { rank: categoryRank(category), items: [row] });
   }
-  return Array.from(groups, ([category, items]) => ({ category, items }));
+  return [...groups.entries()]
+    .sort((a, b) => a[1].rank - b[1].rank)
+    .map(([category, group]) => ({ category, items: group.items }));
 }
 
 /* ------------------------------------------------------------------ */
