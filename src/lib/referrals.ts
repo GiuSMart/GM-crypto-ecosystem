@@ -74,6 +74,24 @@ export function findDuplicateReferral<T extends { id: string; name: string; url:
 }
 
 /** Rank of a category inside the canonical ordering; unknown labels sort last. */
+/**
+ * The two flags answer different questions and must never collapse into one
+ * badge: `verified` is our own check of the offer's details, while
+ * `affiliate_confirmed` is the owner stating that the link, its attribution and
+ * its promotion are theirs. A confirmation from the owner is recorded as such
+ * and is not presented as an independent verification of the provider's terms.
+ */
+export type VerificationBadge = { tone: "pos" | "gold" | "warn"; label: string };
+
+export function verificationBadge(row: {
+  verified: number | boolean;
+  affiliate_confirmed: number | boolean;
+}): VerificationBadge {
+  if (row.verified) return { tone: "pos", label: "dati verificati" };
+  if (row.affiliate_confirmed) return { tone: "gold", label: "confermato dal proprietario" };
+  return { tone: "warn", label: "da verificare" };
+}
+
 export function categoryRank(category: string | null | undefined): number {
   const index = typeof category === "string" ? (REFERRAL_CATEGORIES as readonly string[]).indexOf(category) : -1;
   return index === -1 ? REFERRAL_CATEGORIES.length : index;

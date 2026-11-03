@@ -4,7 +4,7 @@ import { Badge, Callout, Card, Empty } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { all } from "@/lib/db";
 import { dt } from "@/lib/format";
-import { groupReferrals } from "@/lib/referrals";
+import { groupReferrals, verificationBadge } from "@/lib/referrals";
 
 export const dynamic = "force-dynamic";
 
@@ -77,7 +77,7 @@ export default async function AffiliatePage() {
                       <div className="text-[10px] uppercase tracking-[0.14em] text-muted">{r.platform}</div>
                     </div>
                     <div className="flex flex-wrap gap-1">
-                      <Badge tone={r.verified ? "pos" : "warn"}>{r.verified ? "dati verificati" : "da verificare"}</Badge>
+                      <Badge tone={verificationBadge(r).tone}>{verificationBadge(r).label}</Badge>
                       <Badge tone={r.affiliate_confirmed ? "gold" : "neutral"}>{r.affiliate_confirmed ? "affiliazione confermata" : "ricompense non dichiarate"}</Badge>
                     </div>
                   </div>

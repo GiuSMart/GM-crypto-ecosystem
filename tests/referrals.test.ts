@@ -1,7 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { REFERRAL_CATEGORIES, REFERRALS, REFERRAL_UNCLASSIFIED } from "../src/lib/config";
-import { categoryLabel, categoryRank, findDuplicateReferral, groupReferrals, isKnownCategory, orderReferrals, validateReferralUrl } from "../src/lib/referrals";
+import {
+  categoryLabel,
+  categoryRank,
+  findDuplicateReferral,
+  groupReferrals,
+  isKnownCategory,
+  orderReferrals,
+  validateReferralUrl,
+  verificationBadge,
+} from "../src/lib/referrals";
 
 /* -------------------------------------------------------------------------- */
 /* URL safety                                                                  */
@@ -229,4 +238,25 @@ test("the baseline catalogue was left untouched", () => {
   const baseline = ["phantom", "wirex", "speed", "kraken", "coinbase", "crypto-voucher", "freebuff"];
   for (const id of baseline) assert.ok(REFERRALS.some((r) => r.id === id), `offerta precedentemente presente rimossa: ${id}`);
   assert.equal(REFERRALS.length, baseline.length);
+});
+
+/* -------------------------------------------------------------------------- */
+/* Verification vs owner confirmation                                          */
+/* -------------------------------------------------------------------------- */
+
+test("an owner confirmation is never shown as an independent verification", () => {
+  // The owner supplied the link and its promotion: that is recorded as their
+  // statement, so the badge must not read as if we had checked Revolut's terms.
+  const badge = verificationBadge({ verified: 0, affiliate_confirmed: 1 });
+  assert.equal(badge.label, "confermato dal proprietario");
+  assert.equal(/verificat/i.test(badge.label), false, "una conferma del proprietario non e' una verifica");
+});
+
+test("independently verified offers keep their own badge", () => {
+  assert.deepEqual(verificationBadge({ verified: 1, affiliate_confirmed: 1 }), { tone: "pos", label: "dati verificati" });
+  assert.deepEqual(verificationBadge({ verified: 1, affiliate_confirmed: 0 }), { tone: "pos", label: "dati verificati" });
+});
+
+test("offers with no statement at all stay flagged for checking", () => {
+  assert.deepEqual(verificationBadge({ verified: 0, affiliate_confirmed: 0 }), { tone: "warn", label: "da verificare" });
 });
