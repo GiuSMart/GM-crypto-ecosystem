@@ -2,9 +2,8 @@ import { guardedMutation, jsonError, jsonOk, numberFrom } from "@/lib/api";
 import { audit } from "@/lib/audit";
 import { clientMeta } from "@/lib/auth";
 import { newId } from "@/lib/crypto";
-import { REFERRAL_CATEGORIES } from "@/lib/config";
-import { all, run } from "@/lib/db";
-import { findDuplicateReferral, isKnownCategory, validateReferralUrl } from "@/lib/referrals";
+import { all, one, run } from "@/lib/db";
+import { findDuplicateReferral, mergeReferralInput, type ExistingReferral } from "@/lib/referrals";
 import { grantLiveAuthorization, revokeLiveAuthorization } from "@/lib/live";
 import { setUserPlan, updatePlanPricing } from "@/lib/plans";
 
@@ -83,30 +82,24 @@ export async function POST(req: Request) {
 
       case "upsert_referral": {
         const id = body.id ? String(body.id) : newId("ref");
-        const platform = String(body.platform ?? "").trim().slice(0, 60);
-        const name = String(body.name ?? "").trim().slice(0, 80);
-        const category = String(body.category ?? "").trim();
-        if (!platform || !name) return jsonError("Piattaforma e nome sono obbligatori.");
-
-        // Categories are an ordered allowlist: free text here would break the
-        // grouping on the Affiliate Center, so an unknown label is rejected
-        // with the list of the ones the page knows how to sort.
-        if (!isKnownCategory(category)) {
-          return jsonError(`Categoria non valida. Scegli tra: ${REFERRAL_CATEGORIES.join(" · ")}`);
-        }
-
-        const check = validateReferralUrl(body.url);
-        if (!check.ok) return jsonError(check.error);
+        // The upsert replaces every column, so the stored row is read first and the
+        // request only overrides what it mentions: a partial update must never
+        // clear verification flags or re-enable an offer that was switched off.
+        const existing = one<ExistingReferral>("SELECT * FROM referrals WHERE id = ?", id);
+        const merged = mergeReferralInput(body, existing);
+        if (!merged.ok) return jsonError(merged.error);
+        const row = merged.row;
 
         // A link already in the catalogue is never duplicated and never overwritten.
         // Compared on the normalised form: an equivalent URL written differently
-        // must still be caught.
-        const duplicate = findDuplicateReferral(all<{ id: string; name: string; url: string }>("SELECT id, name, url FROM referrals"), id, check.url);
-        if (duplicate) {
-          return jsonError(`Link già presente in questo Affiliate Center: « ${duplicate.name} ». Nessuna voce esistente è stata modificata.`);
+        // must still be caught. Skipped when the update leaves the stored link as is.
+        if (merged.urlChanged) {
+          const duplicate = findDuplicateReferral(all<{ id: string; name: string; url: string }>("SELECT id, name, url FROM referrals"), id, row.url);
+          if (duplicate) {
+            return jsonError(`Link già presente in questo Affiliate Center: « ${duplicate.name} ». Nessuna voce esistente è stata modificata.`);
+          }
         }
 
-        const tutorial = Array.isArray(body.tutorial) ? (body.tutorial as unknown[]).map((t) => String(t).slice(0, 300)) : [];
         run(
           `INSERT INTO referrals(id, platform, name, url, category, tagline, description, how_it_works, tutorial, terms, rewards, verified, affiliate_confirmed, accent, active, sort, updated_at)
            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
@@ -118,24 +111,24 @@ export async function POST(req: Request) {
              affiliate_confirmed = excluded.affiliate_confirmed, accent = excluded.accent, active = excluded.active,
              sort = excluded.sort, updated_at = excluded.updated_at`,
           id,
-          platform,
-          name,
-          check.url,
-          category,
-          String(body.tagline ?? "").slice(0, 160) || null,
-          String(body.description ?? "").slice(0, 1200) || null,
-          String(body.howItWorks ?? "").slice(0, 1200) || null,
-          JSON.stringify(tutorial),
-          String(body.terms ?? "").slice(0, 800) || null,
-          String(body.rewards ?? "").slice(0, 300) || null,
-          body.verified === true ? 1 : 0,
-          body.affiliateConfirmed === true ? 1 : 0,
-          String(body.accent ?? "gold").slice(0, 20),
-          body.active === false ? 0 : 1,
-          numberFrom(body.sort, 100, 0, 9999),
+          row.platform,
+          row.name,
+          row.url,
+          row.category,
+          row.tagline,
+          row.description,
+          row.howItWorks,
+          row.tutorial,
+          row.terms,
+          row.rewards,
+          row.verified,
+          row.affiliateConfirmed,
+          row.accent,
+          row.active,
+          row.sort,
           new Date().toISOString(),
         );
-        audit(user.id, "admin.upsert_referral", id, { platform, name, category }, ip);
+        audit(user.id, "admin.upsert_referral", id, { platform: row.platform, name: row.name, category: row.category }, ip);
         return jsonOk({ id });
       }
 

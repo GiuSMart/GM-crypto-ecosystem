@@ -73,7 +73,6 @@ export function findDuplicateReferral<T extends { id: string; name: string; url:
   return null;
 }
 
-/** Rank of a category inside the canonical ordering; unknown labels sort last. */
 /**
  * The two flags answer different questions and must never collapse into one
  * badge: `verified` is our own check of the offer's details, while
@@ -92,6 +91,7 @@ export function verificationBadge(row: {
   return { tone: "warn", label: "da verificare" };
 }
 
+/** Rank of a category inside the canonical ordering; unknown labels sort last. */
 export function categoryRank(category: string | null | undefined): number {
   const index = typeof category === "string" ? (REFERRAL_CATEGORIES as readonly string[]).indexOf(category) : -1;
   return index === -1 ? REFERRAL_CATEGORIES.length : index;
@@ -134,4 +134,143 @@ export function groupReferrals<T extends ReferralRecord>(rows: readonly T[]): { 
     else groups.set(key, [row]);
   }
   return Array.from(groups, ([category, items]) => ({ category, items }));
+}
+
+/* ------------------------------------------------------------------ */
+/* Writing a referral                                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Flags arrive in three shapes depending on who built the request: the panel
+ * sends booleans, a hand-written snapshot often copies the SQL values (1/0), and
+ * a shell one-liner may send strings. Reading only `=== true` turned a stored 1
+ * into 0 and a stored 0 into 1, so every accepted spelling maps here and
+ * anything else is treated as "not provided".
+ */
+export function flagFrom(value: unknown): boolean | null {
+  if (value === true || value === 1 || value === "1") return true;
+  if (value === false || value === 0 || value === "0") return false;
+  return null;
+}
+
+/** The columns an update can carry over from the stored row, as SQLite has them. */
+export type ExistingReferral = {
+  platform: string;
+  name: string;
+  url: string;
+  category: string | null;
+  tagline: string | null;
+  description: string | null;
+  how_it_works: string | null;
+  tutorial: string | null;
+  terms: string | null;
+  rewards: string | null;
+  verified: number;
+  affiliate_confirmed: number;
+  accent: string | null;
+  active: number;
+  sort: number;
+};
+
+export type ReferralWrite = {
+  platform: string;
+  name: string;
+  url: string;
+  category: string;
+  tagline: string | null;
+  description: string | null;
+  howItWorks: string | null;
+  tutorial: string;
+  terms: string | null;
+  rewards: string | null;
+  verified: number;
+  affiliateConfirmed: number;
+  accent: string;
+  active: number;
+  sort: number;
+};
+
+export type ReferralWriteResult = { ok: true; row: ReferralWrite; urlChanged: boolean } | { ok: false; error: string };
+
+function clampedSort(value: unknown, fallback: number): number {
+  const n = typeof value === "number" ? value : Number.parseFloat(String(value ?? ""));
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(9999, Math.max(0, n));
+}
+
+/**
+ * Builds the full row to write from what the request mentions plus what is already
+ * stored.
+ *
+ * The upsert replaces every column, so an omitted field used to fall back to a
+ * default: a snapshot with only id/platform/name/category/url cleared the texts,
+ * reset `verified`/`affiliateConfirmed`, moved `sort` back to 100 and, worst of
+ * all, reactivated an offer that had been deliberately switched off. A field that
+ * is not mentioned now keeps its stored value; a field sent as an empty string or
+ * null still clears it.
+ */
+export function mergeReferralInput(body: Record<string, unknown>, existing: ExistingReferral | null): ReferralWriteResult {
+  const has = (key: string) => Object.prototype.hasOwnProperty.call(body, key);
+
+  const text = (key: string, column: "tagline" | "description" | "how_it_works" | "terms" | "rewards", max: number) => {
+    if (has(key)) return String(body[key] ?? "").slice(0, max) || null;
+    return existing ? existing[column] : null;
+  };
+
+  const platform = has("platform") ? String(body.platform ?? "").trim().slice(0, 60) : existing?.platform ?? "";
+  if (!platform) return { ok: false, error: "Piattaforma obbligatoria." };
+  const name = has("name") ? String(body.name ?? "").trim().slice(0, 80) : existing?.name ?? "";
+  if (!name) return { ok: false, error: "Nome obbligatorio." };
+
+  const category = has("category") ? String(body.category ?? "").trim() : existing?.category ?? "";
+  if (has("category") && !isKnownCategory(category)) {
+    return { ok: false, error: `Categoria non valida. Scegli tra: ${REFERRAL_CATEGORIES.join(" · ")}` };
+  }
+  if (!category) return { ok: false, error: `Categoria obbligatoria. Scegli tra: ${REFERRAL_CATEGORIES.join(" · ")}` };
+
+  let url: string;
+  let urlChanged = false;
+  if (has("url")) {
+    const check = validateReferralUrl(body.url);
+    if (!check.ok) return { ok: false, error: check.error };
+    url = check.url;
+    urlChanged = !existing || existing.url !== url;
+  } else if (existing?.url) {
+    url = existing.url;
+  } else {
+    return { ok: false, error: "URL https obbligatorio." };
+  }
+
+  const flag = (key: string, column: "verified" | "affiliate_confirmed" | "active", fallback: number) => {
+    if (!has(key)) return existing ? existing[column] : fallback;
+    const value = flagFrom(body[key]);
+    if (value === null) return existing ? existing[column] : fallback;
+    return value ? 1 : 0;
+  };
+
+  const tutorial = has("tutorial")
+    ? JSON.stringify(Array.isArray(body.tutorial) ? (body.tutorial as unknown[]).map((t) => String(t).slice(0, 300)) : [])
+    : existing?.tutorial ?? "[]";
+
+  return {
+    ok: true,
+    urlChanged,
+    row: {
+      platform,
+      name,
+      url,
+      category,
+      tagline: text("tagline", "tagline", 160),
+      description: text("description", "description", 1200),
+      howItWorks: text("howItWorks", "how_it_works", 1200),
+      tutorial,
+      terms: text("terms", "terms", 800),
+      rewards: text("rewards", "rewards", 300),
+      verified: flag("verified", "verified", 0),
+      affiliateConfirmed: flag("affiliateConfirmed", "affiliate_confirmed", 0),
+      accent: has("accent") ? String(body.accent ?? "gold").slice(0, 20) || "gold" : existing?.accent ?? "gold",
+      active: flag("active", "active", 1),
+      sort: clampedSort(body.sort, existing?.sort ?? 100),
+    },
+  };
 }

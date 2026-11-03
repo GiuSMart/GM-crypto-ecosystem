@@ -95,6 +95,20 @@ test("a row that is not an object is rejected", () => {
   }
 });
 
+test("flags written as 0/1 in a snapshot keep their meaning", () => {
+  const body = referralAdminBody({ ...goodRow, verified: 1, affiliateConfirmed: 0, active: 0 });
+  assert.equal(body.verified, true);
+  assert.equal(body.affiliateConfirmed, false);
+  assert.equal(body.active, false, "una voce spenta non deve arrivare come attiva");
+});
+
+test("an unreadable flag is left out instead of guessed", () => {
+  const body = referralAdminBody({ ...goodRow, verified: "sì", active: "yes" });
+  assert.equal("verified" in body, false, "un valore incomprensibile non deve diventare false");
+  assert.equal("active" in body, false);
+  assert.equal(body.affiliateConfirmed, true);
+});
+
 /* -------------------------------------------------------------------------- */
 /* Where a password may be sent                                                */
 /* -------------------------------------------------------------------------- */

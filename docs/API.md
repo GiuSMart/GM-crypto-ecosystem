@@ -52,7 +52,7 @@ Formato risposta: `{ ok: true, data: ... }` oppure `{ ok: false, error: "messagg
 - `set_plan_price` `{ planId, priceCents }`
 - `grant_live` `{ userId, maxOrderQuote, maxDailyLossQuote, confirm: true, note }`
 - `revoke_live` `{ userId }`
-- `upsert_referral` `{ id?, platform, name, category, url, tagline, description, howItWorks, tutorial[], terms, rewards, verified, affiliateConfirmed, active, sort }` — `category` deve essere una delle voci di `REFERRAL_CATEGORIES`; `url` deve essere https senza credenziali e non deve essere già presente (altrimenti la richiesta viene rifiutata senza toccare le voci esistenti)
+- `upsert_referral` `{ id?, platform, name, category, url, tagline, description, howItWorks, tutorial[], terms, rewards, verified, affiliateConfirmed, active, sort }` — `category` deve essere una delle voci di `REFERRAL_CATEGORIES`; `url` deve essere https senza credenziali e non deve essere già presente (altrimenti la richiesta viene rifiutata senza toccare le voci esistenti). Aggiornando una voce già presente l'aggiornamento è **parziale**: i campi omessi mantengono il valore salvato, mentre `""`/`null` li svuotano; `verified`, `affiliateConfirmed` e `active` accettano anche `1`/`0`. Su una voce nuova `platform`, `name`, `category` e `url` sono obbligatori
 - `delete_referral` `{ id }`
 
 ## Intelligenza

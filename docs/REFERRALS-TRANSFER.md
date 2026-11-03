@@ -70,6 +70,21 @@ solo se rispetta queste regole, controllate prima di leggere qualsiasi credenzia
 Una `--base` non valida termina subito con `✗ base URL rifiutata: ...` e nessuna richiesta di rete.
 Esempio: `node scripts/referrals-transfer.mjs verify --in x.json --base https://app.example.com`.
 
+## Cosa tocca una riga, e cosa lascia stare
+
+Ogni riga dello snapshot è un **aggiornamento parziale**: i campi che la riga non
+menziona mantengono il valore già salvato. Uno snapshot con solo `id`, `platform`, `name`,
+`category` e `url` non svuota i testi, non azzera `verified`/`affiliateConfirmed`, non
+sposta `sort` e non riattiva un'offerta spenta.
+
+Per svuotare un campo lo si manda esplicitamente vuoto (`""`) o `null`; `null` su `tutorial`
+lo azzera. `id`, `sort` e i flag nulli vengono ignorati: un `id` nullo creerebbe una riga nuova
+e un `active` nullo riattiverebbe l'offerta.
+
+I flag accettano sia i booleani (`true`/`false`) sia i valori del database (`1`/`0`): un
+esportazione SQL incollata a mano non inverte più verifica e stato. Un valore che non si riesce
+a interpretare (per esempio `"sì"`) viene ignorato, non convertito a caso.
+
 ## Cosa può fare un import
 
 Lo snapshot è **dato, non istruzione**: prima di ogni richiesta il payload viene ricostruito da

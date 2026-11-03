@@ -7,9 +7,11 @@ import {
   findDuplicateReferral,
   groupReferrals,
   isKnownCategory,
+  mergeReferralInput,
   orderReferrals,
   validateReferralUrl,
   verificationBadge,
+  type ExistingReferral,
 } from "../src/lib/referrals";
 
 /* -------------------------------------------------------------------------- */
@@ -259,4 +261,108 @@ test("independently verified offers keep their own badge", () => {
 
 test("offers with no statement at all stay flagged for checking", () => {
   assert.deepEqual(verificationBadge({ verified: 0, affiliate_confirmed: 0 }), { tone: "warn", label: "da verificare" });
+});
+
+/* -------------------------------------------------------------------------- */
+/* A partial update never destroys the stored row                              */
+/* -------------------------------------------------------------------------- */
+
+const stored: ExistingReferral = {
+  platform: "Temp",
+  name: "Scheda",
+  url: "https://temp.example.com/r",
+  category: "Digitale / Strumenti",
+  tagline: "tagline originale",
+  description: "descrizione originale",
+  how_it_works: "spiegazione originale",
+  tutorial: '["passo uno"]',
+  terms: "condizioni originali",
+  rewards: "premio originale",
+  verified: 1,
+  affiliate_confirmed: 0,
+  accent: "gold",
+  active: 0,
+  sort: 999,
+};
+
+test("a partial update keeps the fields it does not mention", () => {
+  const merged = mergeReferralInput(
+    { id: "review-tmp", platform: "Temp", name: "Scheda", category: "Digitale / Strumenti", url: "https://temp.example.com/r" },
+    stored,
+  );
+  assert.equal(merged.ok, true);
+  if (!merged.ok) return;
+  assert.equal(merged.row.tagline, "tagline originale");
+  assert.equal(merged.row.howItWorks, "spiegazione originale");
+  assert.equal(merged.row.tutorial, '["passo uno"]');
+  assert.equal(merged.row.verified, 1, "una verifica non deve sparire per omissione");
+  assert.equal(merged.row.active, 0, "un'offerta spenta non deve riattivarsi");
+  assert.equal(merged.row.sort, 999);
+  assert.equal(merged.urlChanged, false);
+});
+
+test("fields left out of the request are carried over from the stored row", () => {
+  const merged = mergeReferralInput({ platform: "Temp" }, stored);
+  assert.equal(merged.ok, true);
+  if (!merged.ok) return;
+  assert.equal(merged.row.name, "Scheda");
+  assert.equal(merged.row.category, "Digitale / Strumenti");
+  assert.equal(merged.row.url, stored.url);
+  assert.equal(merged.row.terms, "condizioni originali");
+});
+
+test("an explicit empty value still clears a field", () => {
+  const merged = mergeReferralInput({ tagline: "", tutorial: [], rewards: null }, stored);
+  assert.equal(merged.ok, true);
+  if (!merged.ok) return;
+  assert.equal(merged.row.tagline, null);
+  assert.equal(merged.row.tutorial, "[]");
+  assert.equal(merged.row.rewards, null);
+});
+
+test("flags written as 0/1 are read as booleans", () => {
+  const merged = mergeReferralInput({ verified: 0, affiliateConfirmed: 1, active: 0 }, stored);
+  assert.equal(merged.ok, true);
+  if (!merged.ok) return;
+  assert.equal(merged.row.verified, 0);
+  assert.equal(merged.row.affiliateConfirmed, 1);
+  assert.equal(merged.row.active, 0);
+});
+
+test("a flag nobody can interpret keeps the stored value", () => {
+  const merged = mergeReferralInput({ verified: "sì", active: "forse" }, stored);
+  assert.equal(merged.ok, true);
+  if (!merged.ok) return;
+  assert.equal(merged.row.verified, 1);
+  assert.equal(merged.row.active, 0);
+});
+
+test("an unknown category is refused on update too", () => {
+  const merged = mergeReferralInput({ category: "Categoria inventata" }, stored);
+  assert.equal(merged.ok, false);
+});
+
+test("a new referral still needs platform, name, category and url", () => {
+  const base = { platform: "P", name: "N", category: "Finanza / Exchange", url: "https://x.example.com/r" };
+  for (const missing of ["platform", "name", "category", "url"] as const) {
+    const body: Record<string, unknown> = { ...base };
+    delete body[missing];
+    assert.equal(mergeReferralInput(body, null).ok, false, `senza ${missing} la riga non deve essere accettata`);
+  }
+  const good = mergeReferralInput(base, null);
+  assert.equal(good.ok, true);
+  if (!good.ok) return;
+  assert.equal(good.row.active, 1);
+  assert.equal(good.row.verified, 0);
+  assert.equal(good.row.accent, "gold");
+  assert.equal(good.row.sort, 100);
+  assert.equal(good.urlChanged, true);
+});
+
+test("a changed link is reported so the duplicate check can run", () => {
+  const merged = mergeReferralInput({ url: "https://other.example.com/r" }, stored);
+  assert.equal(merged.ok, true);
+  if (!merged.ok) return;
+  assert.equal(merged.urlChanged, true);
+  assert.equal(merged.row.url, "https://other.example.com/r");
 });

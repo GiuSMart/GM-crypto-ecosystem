@@ -86,11 +86,26 @@ export const SNAPSHOT_FIELDS = Object.freeze({
 /** Fields where an explicit null means "leave this empty" rather than "skip". */
 const TEXT_FIELDS = new Set(["platform", "name", "category", "url", "tagline", "description", "howItWorks", "terms", "rewards", "accent"]);
 
+/** Flags, which the panel sends as booleans and SQL dumps as 1/0. */
+const FLAG_FIELDS = new Set(["verified", "affiliateConfirmed", "active"]);
+
+/**
+ * Reads every spelling a flag realistically arrives in. Returns null for values
+ * the importer cannot interpret, which are left out of the payload instead of
+ * being guessed: silently turning "sì" into false would clear a verification.
+ */
+function flagFrom(value) {
+  if (value === true || value === 1 || value === "1") return true;
+  if (value === false || value === 0 || value === "0") return false;
+  return null;
+}
+
 /**
  * Builds the admin request body from a snapshot row.
  *
  * The action is fixed here and read from no input. An absent field is not sent,
- * so a partial snapshot only touches what it mentions; an explicit null empties
+ * and the admin API merges a partial body with the stored row, so a partial
+ * snapshot only touches what it mentions; an explicit null empties
  * a free-text field, while null id/flags/sort are ignored (a null id would ask
  * the API to create a brand-new row, and a null active flag would re-enable an
  * offer that was deliberately switched off).
@@ -101,6 +116,13 @@ export function referralAdminBody(row) {
   for (const [key, field] of Object.entries(SNAPSHOT_FIELDS)) {
     const value = row[key];
     if (value === undefined) continue;
+    // A stored 1/0 means the same as true/false; the API compares against `true`,
+    // so without this a SQL-style snapshot would clear the flags it meant to keep.
+    if (FLAG_FIELDS.has(field)) {
+      const flag = flagFrom(value);
+      if (flag !== null) body[field] = flag;
+      continue;
+    }
     if (value === null) {
       if (TEXT_FIELDS.has(field)) body[field] = "";
       else if (field === "tutorial") body.tutorial = [];
