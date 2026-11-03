@@ -261,16 +261,38 @@ async function adminCatalogue(cookie) {
   return referrals;
 }
 
-/** Reads the rendered catalogue page, which is what a visitor actually gets. */
-async function publishedUrls(cookie) {
+/** Decode the entities React emits inside quoted HTML attributes. */
+function decodeHtmlAttribute(value) {
+  const entities = {
+    "&amp;": "&",
+    "&quot;": '"',
+    "&#x27;": "'",
+    "&#39;": "'",
+    "&lt;": "<",
+    "&gt;": ">",
+    "&#x2F;": "/",
+    "&#x2f;": "/",
+  };
+  return value.replace(/&(?:amp|quot|lt|gt|#x2f|#x27|#39);/gi, (entity) => entities[entity] ?? entity);
+}
+
+/**
+ * Reads only the actual referral anchors. The explicit data-referral-id is
+ * paired with that same anchor's href, so another page link or another offer
+ * using the same URL cannot satisfy this row's visibility check.
+ */
+async function publishedReferrals(cookie) {
   const res = await fetch(`${BASE}/affiliate`, { headers: { Cookie: cookie }, redirect: "manual" });
   if (res.status !== 200) die(`/affiliate ha risposto ${res.status}: sessione non valida o gate attivo`);
   const html = await res.text();
-  // React escapes `&` in attributes as `&amp;`, so unescape before comparing:
-  // referral URLs are full of query separators and would never match otherwise.
-  return new Set(
-    [...html.matchAll(/href="(https?:\/\/[^"]+)"/g)].map((m) => norm(m[1].replace(/&amp;/g, "&").replace(/&#x2F;/g, "/"))),
-  );
+  const referrals = new Map();
+  const anchors = /<a\b(?=[^>]*\bdata-referral-id="([^"]+)")(?=[^>]*\bhref="([^"]+)")[^>]*>/gi;
+  for (const match of html.matchAll(anchors)) {
+    const id = decodeHtmlAttribute(match[1]);
+    const url = norm(decodeHtmlAttribute(match[2]));
+    if (id) referrals.set(id, url);
+  }
+  return referrals;
 }
 
 /* ------------------------------------------------------------------ */
@@ -298,7 +320,7 @@ if (command === "export") {
   const apply = command === "import" && has("apply");
   const cookie = await login();
   const before = await adminCatalogue(cookie);
-  const live = await publishedUrls(cookie);
+  const live = await publishedReferrals(cookie);
 
   if (command === "verify") {
     const report = compareSnapshot(rows, before, live);
@@ -354,7 +376,7 @@ if (command === "export") {
   }
 
   console.log(`\ncreate: ${created} | aggiornate: ${updated} | rifiutate: ${failed}`);
-  const report = compareSnapshot(rows, await adminCatalogue(cookie), await publishedUrls(cookie));
+  const report = compareSnapshot(rows, await adminCatalogue(cookie), await publishedReferrals(cookie));
   printReport(report, "verifica dopo l'import");
   process.exit(report.problems.length || failed ? 1 : 0);
 } else {
