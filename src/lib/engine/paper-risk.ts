@@ -30,12 +30,14 @@ export function evaluatePaperRisk(input: {
   sellFeeConfidence: "verified" | "unverified" | "user";
   openPositions: OpenPaperPosition[];
   closedPositions: ClosedPaperPosition[];
+  ordersLastHour: number;
   now?: number;
 }): RiskVerdict {
   const { settings, evaluation, openPositions, closedPositions } = input;
   const policy = {
     ...DEFAULT_RISK_POLICY,
     maxOrderQuote: Math.min(DEFAULT_RISK_POLICY.maxOrderQuote, settings.maxOrderQuote),
+    maxOrdersPerHour: Math.min(DEFAULT_RISK_POLICY.maxOrdersPerHour, settings.maxOrdersPerHour),
     maxDailyLossQuote: Math.min(DEFAULT_RISK_POLICY.maxDailyLossQuote, settings.maxDailyLossQuote),
     maxSlippagePct: Math.min(DEFAULT_RISK_POLICY.maxSlippagePct, settings.maxSlippagePct),
     maxDataAgeMs: Math.min(DEFAULT_RISK_POLICY.maxDataAgeMs, settings.maxDataAgeMs),
@@ -88,6 +90,7 @@ export function evaluatePaperRisk(input: {
       venueExposureQuote,
       strategyExposureQuote,
       availableCapitalQuote: Math.max(0, equityQuote - totalExposureQuote),
+      ordersLastHour: input.ordersLastHour,
       systemState: settings.monitoringEnabled ? "operational" : "halted",
       emergencyStop: false,
     },
