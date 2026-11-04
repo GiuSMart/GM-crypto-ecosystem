@@ -7,6 +7,7 @@ This checklist is a launch gate, not a claim that the application is already pro
 - [ ] Require the GitHub Actions CI workflow to pass on the exact release commit.
 - [ ] Review dependency audit findings; document and resolve high/critical production vulnerabilities.
 - [ ] Confirm the deployed Node.js version is supported by the application (Node.js 22 or newer).
+- [ ] Run `npm run typecheck`, `npm test`, `npm run build` and then `npm run test:e2e` on the release commit. The end-to-end suite boots the production server against a fresh database and an upgraded one, so it covers the Affiliate Center rendering and the migration together.
 - [ ] Build from a clean checkout and deploy an immutable commit or release artifact.
 - [ ] Keep deployment secrets out of Git, build logs, client bundles and support tickets.
 
