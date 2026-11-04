@@ -36,7 +36,7 @@ test("caps policy order size at the stricter authorization limit", () => {
   };
   const snapshot = {
     liveSwitchEnabled: true, ownerPolicyAuthorizationActive: true, finalOwnerApproval: true,
-    routerImplemented: true, apiCredentialValid: true, apiPermission: "trade-only" as const,
+    routerImplemented: true, apiCredentialValid: true, apiPermission: "full-trading" as const,
     withdrawalsEnabled: false, authorizationMaxOrderQuote: 200, authorizationMaxDailyLossQuote: 80,
     killSwitchActive: false, balanceFresh: true, dailyRealizedLossQuote: 0,
     currentExposureQuote: 0, ordersLastHour: 0, orderBookAgeMs: 100,
@@ -44,5 +44,5 @@ test("caps policy order size at the stricter authorization limit", () => {
   const result = evaluateControlledLiveOrder(intent, policy, snapshot);
   assert.equal(result.allowed, false);
   assert.equal(result.effectiveMaxOrderQuote, 200);
-  assert.ok(result.reasons.some((reason) => reason.includes("autorizzazione")));
+  assert.ok(result.reasons.some((reason) => reason.includes("Importo superiore al limite")));
 });
