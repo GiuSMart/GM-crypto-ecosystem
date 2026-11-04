@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -15,7 +16,11 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Request-scoped rendering lets Next.js read the forwarded CSP header and
+  // attach its nonce to framework scripts and streamed hydration payloads.
+  await headers();
+
   return (
     <html lang="it">
       <body>{children}</body>
