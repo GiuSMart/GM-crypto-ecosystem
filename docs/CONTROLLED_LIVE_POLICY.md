@@ -10,7 +10,7 @@ Agents may propose and prepare orders only within an owner-approved policy. Agen
 
 ## Mandatory limits
 
-The owner must configure and approve: quote currency; maximum notional per order; maximum daily realized loss and worst-case loss at stop; maximum aggregate exposure; maximum orders per rolling hour; maximum spread and slippage; maximum order-book age; and allowlisted symbols. Missing, zero, negative, non-finite, stale, or contradictory inputs fail closed.
+The owner must configure and approve: quote currency; maximum notional per order; maximum daily realized loss and worst-case loss at stop; maximum aggregate exposure; the effective order and daily-loss caps are always the stricter minimum between policy values and the separately stored live authorization; maximum orders per rolling hour; maximum spread and slippage; maximum order-book age; and allowlisted symbols. Missing, zero, negative, non-finite, stale, or contradictory inputs fail closed.
 
 ## Runtime gates
 
