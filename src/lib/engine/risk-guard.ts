@@ -29,6 +29,7 @@ export type RiskViolationCode =
   | "BUY_VENUE_NOT_AUTHORIZED"
   | "SELL_VENUE_NOT_AUTHORIZED"
   | "ORDER_ABOVE_CAP"
+  | "ORDER_RATE_LIMIT"
   | "INSUFFICIENT_CAPITAL"
   | "TOTAL_EXPOSURE_LIMIT"
   | "VENUE_EXPOSURE_LIMIT"
@@ -70,6 +71,8 @@ export type RiskWarning = {
 export type RiskPolicy = {
   /** Maximum quote notional for a single order, both legs included. */
   maxOrderQuote: number;
+  /** Maximum number of paper opens allowed in a rolling hour. */
+  maxOrdersPerHour: number;
   /** Stop trading for the day once realized P&L falls to minus this amount. */
   maxDailyLossQuote: number;
   /** Stop trading when equity falls this percentage below its peak. */
@@ -124,6 +127,8 @@ export type PortfolioState = {
   strategyExposureQuote: Record<string, number>;
   /** Capital still available to commit. */
   availableCapitalQuote: number;
+  /** Number of this user's paper positions opened in the preceding rolling hour. */
+  ordersLastHour: number;
   systemState: "operational" | "degraded" | "halted";
   /** Operator kill switch: overrides everything. */
   emergencyStop: boolean;
@@ -145,6 +150,7 @@ export type RiskVerdict = {
  */
 export const DEFAULT_RISK_POLICY: RiskPolicy = {
   maxOrderQuote: 500,
+  maxOrdersPerHour: 10,
   maxDailyLossQuote: 25,
   maxDrawdownPct: 10,
   maxTotalExposureQuote: 1000,
@@ -171,6 +177,7 @@ export function validateRiskPolicy(policy: RiskPolicy): string[] {
 
   const positive: (keyof RiskPolicy)[] = [
     "maxOrderQuote",
+    "maxOrdersPerHour",
     "maxDailyLossQuote",
     "maxTotalExposureQuote",
     "maxVenueExposureQuote",
@@ -222,6 +229,7 @@ function incompleteInputs(intent: TradeIntent, portfolio: PortfolioState): strin
     ["portfolio.equityQuote", portfolio.equityQuote],
     ["portfolio.totalExposureQuote", portfolio.totalExposureQuote],
     ["portfolio.availableCapitalQuote", portfolio.availableCapitalQuote],
+    ["portfolio.ordersLastHour", portfolio.ordersLastHour],
   ];
   for (const [name, value] of required) {
     if (!finite(value)) problems.push(`${name} non è un numero finito.`);
@@ -328,6 +336,16 @@ export function evaluateRisk(input: {
     });
   }
 
+  // --- 3. Order frequency ---------------------------------------------------
+  checks += 1;
+  if (portfolio.ordersLastHour >= policy.maxOrdersPerHour) {
+    violations.push({
+      code: "ORDER_RATE_LIMIT",
+      message: "Paper opens in the last hour (" + portfolio.ordersLastHour + ") reached the limit " + policy.maxOrdersPerHour + ".",
+      limit: policy.maxOrdersPerHour,
+      value: portfolio.ordersLastHour,
+    });
+  }
   // --- 3. Capital and exposure ----------------------------------------------
   checks += 1;
   if (intent.notionalQuote > policy.maxOrderQuote) {
