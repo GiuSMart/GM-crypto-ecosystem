@@ -18,6 +18,7 @@ async function krakenGet<T>(path: string): Promise<T> {
     const res = await fetch(`${BASE}/${path}`, {
       headers: { "User-Agent": UA, Accept: "application/json" },
       cache: "no-store",
+      redirect: "error",
       signal: AbortSignal.timeout(9000),
     });
     if (!res.ok) throw new Error(`Kraken HTTP ${res.status}`);
@@ -57,14 +58,17 @@ async function getPairIndex(): Promise<PairIndex> {
     if (entry.status !== "online") continue;
     const wsname = entry.wsname; // e.g. "BTC/USD"
     if (!wsname) continue;
-    altnameByWs.set(wsname, entry.altname);
-    wsByKey.set(key, wsname);
     const [base, quote] = wsname.split("/");
+    const pair = `${normaliseBase(base)}/${quote}`;
+    // The public universe uses normalised symbols (BTC, not Kraken's XBT).
+    // Key the lookup by the same pair so OHLC and order-book calls agree.
+    altnameByWs.set(pair, entry.altname);
+    wsByKey.set(key, pair);
     if (
       (ASSETS as readonly string[]).includes(normaliseBase(base)) &&
       (QUOTES as readonly string[]).includes(quote)
     ) {
-      supported.push(`${normaliseBase(base)}/${quote}`);
+      supported.push(pair);
     }
   }
   const index: PairIndex = { altnameByWs, wsByKey, supported: [...new Set(supported)] };
@@ -73,6 +77,101 @@ async function getPairIndex(): Promise<PairIndex> {
 }
 
 type TickerEntry = { a: string[]; b: string[]; c: string[] };
+
+export type HistoricalCandle = {
+  venue: "kraken";
+  pair: string;
+  intervalMinutes: number;
+  openTime: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  vwap: number;
+  volume: number;
+  trades: number;
+};
+
+type KrakenOhlcRow = [number, string, string, string, string, string, string, number];
+type KrakenOhlcResult = { last: number } & Record<string, KrakenOhlcRow[] | number>;
+
+/**
+ * Fetch closed Kraken OHLC candles for internal research/backtesting only.
+ * Kraken returns at most 720 recent rows; the currently-forming candle is excluded
+ * so a backtest cannot accidentally consume a candle before its close.
+ */
+export async function getHistoricalCandles(input: {
+  pair: string;
+  intervalMinutes: number;
+  since?: number;
+  nowMs?: number;
+}): Promise<{ candles: HistoricalCandle[]; last: number }> {
+  const allowedIntervals = [1, 5, 15, 30, 60, 240, 1440, 10080, 21600];
+  if (!allowedIntervals.includes(input.intervalMinutes)) {
+    throw new RangeError("Intervallo OHLC Kraken non supportato.");
+  }
+  if (typeof input.pair !== "string" || !/^[A-Z0-9]{2,12}\/[A-Z0-9]{2,12}$/.test(input.pair)) {
+    throw new RangeError("Coppia di mercato non valida.");
+  }
+  if (input.since !== undefined && (!Number.isSafeInteger(input.since) || input.since < 0)) {
+    throw new RangeError("Il parametro since deve essere un timestamp Unix in secondi valido.");
+  }
+  const index = await getPairIndex();
+  const altname = index.altnameByWs.get(input.pair);
+  if (!altname) throw new Error(`Kraken: coppia ${input.pair} non disponibile.`);
+
+  const query = `OHLC?pair=${encodeURIComponent(altname)}&interval=${input.intervalMinutes}${
+    input.since === undefined ? "" : `&since=${input.since}`
+  }`;
+  const result = await krakenGet<KrakenOhlcResult>(query);
+  const resultKey = Object.keys(result).find((key) => key !== "last" && Array.isArray(result[key]));
+  if (!resultKey) throw new Error("Kraken: risposta OHLC senza serie di candele.");
+  const rows = result[resultKey] as KrakenOhlcRow[];
+  const nowMs = input.nowMs ?? Date.now();
+  if (!Number.isFinite(nowMs) || nowMs < 0) throw new RangeError("Orologio di riferimento OHLC non valido.");
+  const nowSeconds = Math.floor(nowMs / 1000);
+  const intervalSeconds = input.intervalMinutes * 60;
+  const candles: HistoricalCandle[] = [];
+
+  for (const row of rows) {
+    if (!Array.isArray(row) || row.length < 8) throw new Error("Kraken: riga OHLC incompleta.");
+    const [time, open, high, low, close, vwap, volume, trades] = row;
+    const candle = {
+      venue: "kraken" as const,
+      pair: input.pair,
+      intervalMinutes: input.intervalMinutes,
+      openTime: Number(time),
+      open: Number(open),
+      high: Number(high),
+      low: Number(low),
+      close: Number(close),
+      vwap: Number(vwap),
+      volume: Number(volume),
+      trades: Number(trades),
+    };
+    if (
+      !Number.isSafeInteger(candle.openTime) ||
+      !Number.isSafeInteger(candle.trades) ||
+      candle.openTime < 0 ||
+      ![candle.open, candle.high, candle.low, candle.close, candle.vwap, candle.volume, candle.trades].every(Number.isFinite) ||
+      candle.open <= 0 ||
+      candle.high < Math.max(candle.open, candle.close, candle.low) ||
+      candle.low > Math.min(candle.open, candle.close, candle.high) ||
+      candle.vwap <= 0 ||
+      candle.volume < 0 ||
+      candle.trades < 0
+    ) {
+      throw new Error("Kraken: candela OHLC con valori non validi.");
+    }
+    if (candle.openTime + intervalSeconds <= nowSeconds) candles.push(candle);
+  }
+
+  candles.sort((a, b) => a.openTime - b.openTime);
+  const last = Number(result.last);
+  if (!Number.isSafeInteger(last) || last < 0) throw new Error("Kraken: cursore OHLC non valido.");
+  return { candles, last };
+}
+
 
 export const kraken: VenueAdapter = {
   id: "kraken",

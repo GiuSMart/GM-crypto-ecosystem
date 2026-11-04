@@ -1,7 +1,8 @@
 import { newId } from "./crypto";
-import { all, getUserSettings, one, run } from "./db";
+import { all, getDb, getUserSettings, one, run } from "./db";
 import { evaluateOpportunity, walkBids } from "./engine/arbitrage";
 import { calculatePaperRealizedProfit } from "./engine/paper";
+import { evaluatePaperRisk } from "./engine/paper-risk";
 import { calculatePaperPerformance, comparePaperExpectedToRealized } from "./engine/paper-analytics";
 import { resolveFee } from "./engine/fees";
 import { audit } from "./audit";
@@ -70,6 +71,48 @@ export async function openPaperTrade(userId: string, opportunityId: string, ip: 
       };
     }
 
+    const db = getDb();
+    db.exec("BEGIN IMMEDIATE");
+    try {
+    const openPositions = all<Pick<PaperTradeRow, "notional" | "buy_venue" | "sell_venue">>(
+      "SELECT notional, buy_venue, sell_venue FROM paper_trades WHERE user_id = ? AND status = 'open'",
+      userId,
+    );
+    const closedPositions = all<{ realized_profit: number | null; closed_at: string | null }>(
+      "SELECT realized_profit, closed_at FROM paper_trades WHERE user_id = ? AND status = 'closed' AND closed_at IS NOT NULL ORDER BY closed_at ASC",
+      userId,
+    );
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const recentOrders = one<{ count: number }>(
+      "SELECT COUNT(*) AS count FROM paper_trades WHERE user_id = ? AND opened_at >= ?",
+      userId,
+      oneHourAgo,
+    );
+    const riskVerdict = evaluatePaperRisk({
+      settings,
+      evaluation,
+      buyFeeConfidence: buyFee.confidence,
+      sellFeeConfidence: sellFee.confidence,
+      openPositions,
+      closedPositions,
+      ordersLastHour: recentOrders?.count ?? 0,
+    });
+
+    if (!riskVerdict.approved) {
+      const reasons = riskVerdict.violations.map((violation) => `${violation.code}: ${violation.message}`);
+      audit(userId, "paper.risk.block", opportunityId, {
+        codes: riskVerdict.violations.map((violation) => violation.code),
+        checksEvaluated: riskVerdict.checksEvaluated,
+      }, ip);
+      db.exec("COMMIT");
+      return { ok: false, error: "Risk Guard: apertura paper bloccata.", reasons };
+    }
+
+    audit(userId, "paper.risk.approve", opportunityId, {
+      checksEvaluated: riskVerdict.checksEvaluated,
+      warnings: riskVerdict.warnings.map((warning) => warning.code),
+    }, ip);
+
     const id = newId("pt");
     const transferCost = Number.isFinite(evaluation.transferCost) ? evaluation.transferCost : 0;
     run(
@@ -95,7 +138,12 @@ export async function openPaperTrade(userId: string, opportunityId: string, ip: 
       `Paper trade — margine atteso ${evaluation.marginPct.toFixed(3)}%`,
     );
     audit(userId, "paper.open", id, { pair: evaluation.pair, notional: evaluation.notionalQuote }, ip);
+    db.exec("COMMIT");
     return { ok: true, id, expectedProfit: evaluation.netProfit, marginPct: evaluation.marginPct };
+    } catch (transactionError) {
+      try { db.exec("ROLLBACK"); } catch { /* transaction may already be closed */ }
+      throw transactionError;
+    }
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
