@@ -2,6 +2,7 @@ import { newId } from "./crypto";
 import { all, getUserSettings, one, run } from "./db";
 import { evaluateOpportunity, walkBids } from "./engine/arbitrage";
 import { calculatePaperRealizedProfit } from "./engine/paper";
+import { evaluatePaperRisk } from "./engine/paper-risk";
 import { calculatePaperPerformance, comparePaperExpectedToRealized } from "./engine/paper-analytics";
 import { resolveFee } from "./engine/fees";
 import { audit } from "./audit";
@@ -69,6 +70,37 @@ export async function openPaperTrade(userId: string, opportunityId: string, ip: 
         reasons: evaluation.rejectReasons,
       };
     }
+
+    const openPositions = all<Pick<PaperTradeRow, "notional" | "buy_venue" | "sell_venue">>(
+      "SELECT notional, buy_venue, sell_venue FROM paper_trades WHERE user_id = ? AND status = 'open'",
+      userId,
+    );
+    const closedPositions = all<{ realized_profit: number | null; closed_at: string | null }>(
+      "SELECT realized_profit, closed_at FROM paper_trades WHERE user_id = ? AND status = 'closed' AND closed_at IS NOT NULL ORDER BY closed_at ASC",
+      userId,
+    );
+    const riskVerdict = evaluatePaperRisk({
+      settings,
+      evaluation,
+      buyFeeConfidence: buyFee.confidence,
+      sellFeeConfidence: sellFee.confidence,
+      openPositions,
+      closedPositions,
+    });
+
+    if (!riskVerdict.approved) {
+      const reasons = riskVerdict.violations.map((violation) => `${violation.code}: ${violation.message}`);
+      audit(userId, "paper.risk.block", opportunityId, {
+        codes: riskVerdict.violations.map((violation) => violation.code),
+        checksEvaluated: riskVerdict.checksEvaluated,
+      }, ip);
+      return { ok: false, error: "Risk Guard: apertura paper bloccata.", reasons };
+    }
+
+    audit(userId, "paper.risk.approve", opportunityId, {
+      checksEvaluated: riskVerdict.checksEvaluated,
+      warnings: riskVerdict.warnings.map((warning) => warning.code),
+    }, ip);
 
     const id = newId("pt");
     const transferCost = Number.isFinite(evaluation.transferCost) ? evaluation.transferCost : 0;

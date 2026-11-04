@@ -123,6 +123,27 @@ CREATE INDEX IF NOT EXISTS idx_opps_ts ON opportunities(ts DESC);
 CREATE INDEX IF NOT EXISTS idx_opps_pair ON opportunities(pair, ts DESC);
 CREATE INDEX IF NOT EXISTS idx_opps_user ON opportunities(user_id, ts DESC);
 
+-- Internal historical OHLC cache. Access is restricted to the project administrator
+-- until commercial market-data redistribution rights are explicitly cleared.
+CREATE TABLE IF NOT EXISTS market_candles (
+  venue           TEXT NOT NULL,
+  pair            TEXT NOT NULL,
+  interval_minutes INTEGER NOT NULL,
+  open_time       INTEGER NOT NULL,
+  open            REAL NOT NULL,
+  high            REAL NOT NULL,
+  low             REAL NOT NULL,
+  close           REAL NOT NULL,
+  vwap            REAL NOT NULL,
+  volume          REAL NOT NULL,
+  trades          INTEGER NOT NULL,
+  fetched_at      TEXT NOT NULL,
+  PRIMARY KEY (venue, pair, interval_minutes, open_time)
+);
+CREATE INDEX IF NOT EXISTS idx_market_candles_lookup
+  ON market_candles(venue, pair, interval_minutes, open_time DESC);
+
+
 CREATE TABLE IF NOT EXISTS scan_runs (
   id           TEXT PRIMARY KEY,
   ts           TEXT NOT NULL,
