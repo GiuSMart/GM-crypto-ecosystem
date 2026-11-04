@@ -16,7 +16,8 @@ test("blocks an order when final owner approval is absent", () => {
   const snapshot = {
     liveSwitchEnabled: true, ownerPolicyAuthorizationActive: true, finalOwnerApproval: false,
     routerImplemented: true, apiCredentialValid: true, apiPermission: "trade-only" as const,
-    withdrawalsEnabled: false, killSwitchActive: false, balanceFresh: true,
+    withdrawalsEnabled: false, authorizationMaxOrderQuote: 200, authorizationMaxDailyLossQuote: 80,
+    killSwitchActive: false, balanceFresh: true,
     dailyRealizedLossQuote: 0, currentExposureQuote: 0, ordersLastHour: 0, orderBookAgeMs: 100,
   };
   const result = evaluateControlledLiveOrder(intent, policy, snapshot);
