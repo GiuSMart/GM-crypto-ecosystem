@@ -1,4 +1,5 @@
 import { ASSETS, QUOTES } from "../config";
+import { assertAllowedVenueBase } from "./hosts";
 import { throttled } from "../rate-limit";
 import type { Book } from "../engine/arbitrage";
 import { toLevels, type Ticker, type VenueAdapter } from "./types";
@@ -10,7 +11,7 @@ import { toLevels, type Ticker, type VenueAdapter } from "./types";
  * uses public endpoints only: no API key, account access, order placement or
  * withdrawal capability is implemented here.
  */
-const BASE = "https://eea.okx.com";
+const BASE = assertAllowedVenueBase("https://eea.okx.com", "OKX_API_BASE").origin;
 const UA = "GM-Crypto-Arbitrage-AI/0.3 (+public Spot market data only)";
 const SPACING = 150;
 const INSTRUMENT_TTL = 30 * 60 * 1000;
