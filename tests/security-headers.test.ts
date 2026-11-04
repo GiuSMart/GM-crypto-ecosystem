@@ -7,7 +7,7 @@ const nonce = "dGVzdC1ub25jZS0xMjM0NTY3OA==";
 const directives = (policy: string) =>
   new Map(
     policy.split(";").map((part) => {
-      const [name, ...value] = part.trim().split(/\\s+/);
+      const [name, ...value] = part.trim().split(/\s+/);
       return [name, value.join(" ")];
     }),
   );
@@ -28,7 +28,7 @@ test("production CSP authorizes scripts only with the per-request nonce", () => 
 test("production CSP does not ship development script escapes", () => {
   const value = buildContentSecurityPolicy({ production: true, nonce });
   assert.ok(!value.includes("'unsafe-eval'"), "unsafe-eval must not reach production");
-  assert.ok(!/\\bws:|wss:/.test(value), "production must not allow websockets");
+  assert.ok(!/\bws:|wss:/.test(value), "production must not allow websockets");
 });
 
 test("development CSP allows eval and hot reload only in addition to the nonce", () => {
@@ -47,7 +47,7 @@ test("inline style attributes remain allowed until UI style props are refactored
 
 test("no remote origin is whitelisted for scripts, styles, fonts or images", () => {
   const value = buildContentSecurityPolicy({ production: true, nonce });
-  assert.ok(!/https?:\\/\\//.test(value), `unexpected remote origin in ${value}`);
+  assert.ok(!/https?:\/\//.test(value), `unexpected remote origin in ${value}`);
 });
 
 test("invalid nonce values are rejected", () => {
