@@ -13,13 +13,13 @@ Integrare nel GM Crypto Ecosystem le regole del manuale personale BTC come strat
 - Target: +2%, +3%, +4%, +5%, +8% netti.
 - Fee ipotizzate dal manuale: 0,09% acquisto + 0,09% vendita.
 
-## Calcolo Take Profit
+## Calcolo Take Profit e verifica del PDF
 
 Per un target netto desiderato r, fee acquisto fb e fee vendita fs, il prezzo minimo di uscita è:
 
 sellPrice = averageEntry × (1 + fb) × (1 + r) / (1 - fs)
 
-Le percentuali sono convertite in frazioni prima del calcolo. Il moltiplicatore del manuale (es. 1,0218 per +2%) è un'approssimazione a quattro decimali di questo rapporto. Il profitto in euro è calcolato sul controvalore effettivo della posizione, non automaticamente sull'intero budget del wallet.
+Le percentuali sono convertite in frazioni prima del calcolo. Il PDF usa il moltiplicatore 1,0218 per il target +2% e riporta 73.033,15 EUR su un carico di 71.475 EUR. Applicando esattamente entrambe le commissioni dello 0,09% e un rendimento netto del 2% sul capitale investito, il moltiplicatore è 1,02183765 e il prezzo è 73.035,85 EUR. Il prezzo del PDF è quindi una buona approssimazione, ma produce circa +1,9962% netto (circa 199,62 EUR su 10.000 EUR), non 200 EUR esatti. Il motore usa il calcolo esatto e mantiene il profitto in euro proporzionale al controvalore effettivo della posizione.
 
 ## Architettura prevista
 
@@ -51,4 +51,4 @@ Misurare almeno: rendimento netto dopo fee, max drawdown, profit factor, win rat
 
 ## Stato della prima consegna
 
-src/lib/engine/btc-asymmetric.ts contiene solo funzioni pure per allocazione, classificazione del movimento giornaliero e calcolo dei target. tests/btc-asymmetric.test.ts verifica le regole e riproduce il prezzo +2% del manuale. Nessuna chiamata API, credenziale o operazione reale è inclusa in questa fase.
+src/lib/engine/btc-asymmetric.ts contiene solo funzioni pure per allocazione, classificazione del movimento giornaliero e calcolo dei target. tests/btc-asymmetric.test.ts verifica le regole e riproduce il calcolo corretto del +2% netto. Nessuna chiamata API, credenziale o operazione reale è inclusa in questa fase.
