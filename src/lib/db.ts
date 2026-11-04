@@ -132,6 +132,12 @@ function migrate(db: DatabaseSync) {
   const columns = db.prepare("PRAGMA table_info(referrals)").all() as unknown as { name: string }[];
   if (!columns.some((c) => c.name === "category")) {
     db.exec(`ALTER TABLE referrals ADD COLUMN category TEXT NOT NULL DEFAULT '${REFERRAL_UNCLASSIFIED}'`);
+    // The ALTER writes its default into every existing row, so those rows carry
+    // the fallback label without anyone having chosen it. Blanking them here
+    // lets the backfill below give each offer its real category; this runs only
+    // on the upgrade that adds the column, so a label an admin picks later is
+    // never touched.
+    db.prepare("UPDATE referrals SET category = ''").run();
   }
 
   // Rows saved before categories existed, plus any row with an empty label, get
