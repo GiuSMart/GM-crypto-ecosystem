@@ -16,7 +16,8 @@
     "db:info": "tsx scripts/db-info.ts",
     "worker": "tsx scripts/worker.ts",
     "licenses:check": "node scripts/check-licenses.mjs",
-    "licenses:report": "node scripts/check-licenses.mjs --report"
+    "licenses:report": "node scripts/check-licenses.mjs --report",
+    "licenses:notices": "node scripts/generate-third-party-notices.mjs"
   },
   "dependencies": {
     "next": "16.4.3",
