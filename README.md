@@ -87,6 +87,12 @@ GM_WORKER_ENABLED=true npm run worker # worker server continuo (una sola istanza
 - [docs/FREEBUFF_HANDOFF.md](docs/FREEBUFF_HANDOFF.md) — istruzioni operative per Freebuff e revisione della PR #20
 - [AGENTS.md](AGENTS.md) — regole di progetto per gli agenti AI
 
+## Agent platform e sviluppo assistito
+
+- [docs/GM_AGENT_PLATFORM.md](docs/GM_AGENT_PLATFORM.md) — architettura target per GM MASTER AI, agenti specialistici, orchestrazione e controlli.
+- [docs/SKILLS_GOVERNANCE.md](docs/SKILLS_GOVERNANCE.md) — governance delle Skills, API skills.sh, audit, hash e approvazioni.
+- [docs/GM_FREEBUFF_EXECUTION_BACKLOG.md](docs/GM_FREEBUFF_EXECUTION_BACKLOG.md) — sequenza di lavoro e criteri di accettazione per Freebuff.
+
 ## Licenze delle dipendenze
 
 Next.js (MIT), React (MIT), Tailwind CSS (MIT), TypeScript (Apache-2.0), tsx (MIT). `node:sqlite` è parte di Node.js (MIT). Nessuna dipendenza copyleft, nessuna licenza commerciale richiesta.
