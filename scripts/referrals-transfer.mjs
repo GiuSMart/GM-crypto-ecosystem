@@ -31,7 +31,7 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { DatabaseSync } from "node:sqlite";
-import { dbFile } from "./lib/runtime-paths.mjs";
+import { dataDir, dbFile } from "./lib/runtime-paths.mjs";
 import { compareSnapshot, normaliseUrl, referralAdminBody, resolveBaseUrl, storedFor } from "./lib/transfer-safety.mjs";
 
 const args = process.argv.slice(2);
@@ -315,7 +315,7 @@ function printReport(report, title) {
 }
 
 if (command === "export") {
-  exportCatalogue(opt("out", path.join("data", "referrals-export.json")));
+  exportCatalogue(opt("out", path.join(dataDir(), "referrals-export.json")));
 } else if (command === "import" || command === "verify") {
   const rows = loadSnapshot(opt("in"));
   const apply = command === "import" && has("apply");
