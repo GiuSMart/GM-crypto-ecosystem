@@ -1,0 +1,16 @@
+{
+  "$schema": "https://skills.sh/schemas/skills.sh.schema.json",
+  "notGrouped": "bottom",
+  "groupings": [
+    {
+      "title": "GM Core",
+      "description": "Project-specific orchestration, risk review, quality and Skills governance.",
+      "skills": [
+        "gm-master-orchestrator",
+        "gm-skills-manager",
+        "gm-crypto-risk-review",
+        "gm-crypto-quality"
+      ]
+    }
+  ]
+}

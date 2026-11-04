@@ -5,7 +5,7 @@
 La richiesta indicava Python + FastAPI come preferenza per il motore. In questa prima release il motore è **TypeScript puro** (`src/lib/engine/arbitrage.ts`) perché:
 
 1. Il motore deve girare **accanto** alle API che servono la dashboard: un solo processo, un solo deploy, zero latenza di rete fra UI e calcolo.
-2. Le funzioni sono pure e deterministiche (nessun I/O, nessun `Date.now()` implicito), quindi testabili in isolamento — 13 test con `node:test`.
+2. Le funzioni sono pure e deterministiche (nessun I/O, nessun `Date.now()` implicito), quindi testabili in isolamento — 15 test sul motore, 32 in totale sui 7 file di `tests/`, con `node:test`.
 3. Con budget zero, un secondo servizio Python significherebbe un secondo host/container da gestire.
 
 Le API pubbliche (Kraken/Coinbase) sono le stesse raggiungibili da Python; il motore è un puro calcolo su order book. Se servirà un servizio Python (es. backtesting numerico pesante), il contratto è già definito da `Evaluation` e `CostModel`: basta esporre `/scan` e consumarlo. Vedi `docs/PHASES.md`, Fase 3.

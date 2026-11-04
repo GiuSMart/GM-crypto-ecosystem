@@ -30,7 +30,7 @@ Stato reale al primo prototipo. Nessuna voce è dichiarata completata senza impl
 
 **Realizzato**
 - `engine/arbitrage.ts` puro: VWAP di profondità su ask e bid, fee taker, buffer, trasferimento, staleness, slippage, sizing multiplo.
-- Regola **NO PROFIT = NO TRADE** applicata e testata: 13 test, inclusi spread positivo 0,39% scartato perché le fee valgono 1,70%.
+- Regola **NO PROFIT = NO TRADE** applicata e testata: 15 test sul motore, inclusi spread positivo 0,39% scartato perché le fee valgono 1,70%.
 - Scansione con persistenza di ogni valutazione e del motivo di scarto.
 
 **Funziona**: calcolo completo, rifiuto motivato, catena di validazione.
@@ -85,14 +85,15 @@ Stato reale al primo prototipo. Nessuna voce è dichiarata completata senza impl
 ## FASE 8 — Test di sicurezza e funzionali
 
 **Eseguito**
-- 13 test unitari del motore (`npm test`), tutti verdi.
+- 32 test automatici (`npm test`) su 7 file: 15 del motore, più fee, paper trading, rate limit, alert, signal intelligence e configurazione del worker.
 - Typecheck TypeScript completo (`npm run typecheck`).
 - Build di produzione (`npm run build`).
+- `npm audit --omit=dev --audit-level=high`: 0 vulnerabilità di produzione; il controllo gira in CI su ogni push e pull request.
 - Verifica manuale endpoint: login, sessione, board, scan, paper open/close, export CSV.
 
 **Manca**
-- Test end-to-end browser (nessuna automazione browser in questo ambiente).
-- Penetration test esterno, test di carico, scansione dipendenze (`npm audit` non eseguito per policy offline).
+- Test end-to-end browser dentro la CI: non sono automatizzati. Una suite E2E contro `next start` (HTTP, con database temporaneo) è proposta nella PR #19 e non è ancora su `main`; la verifica visiva resta manuale.
+- Penetration test esterno e test di carico.
 - Verifica in produzione su HTTPS.
 
 ---
