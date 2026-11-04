@@ -21,6 +21,7 @@ const run = (overrides: {
   sellFeeConfidence?: "verified" | "unverified" | "user";
   openPositions?: OpenPaperPosition[];
   closedPositions?: ClosedPaperPosition[];
+  ordersLastHour?: number;
 } = {}) => evaluatePaperRisk({
   settings: { ...DEFAULT_SETTINGS, ...overrides.settings },
   evaluation: { ...evaluation, ...overrides.evaluation },
@@ -28,6 +29,7 @@ const run = (overrides: {
   sellFeeConfidence: overrides.sellFeeConfidence ?? "verified",
   openPositions: overrides.openPositions ?? [],
   closedPositions: overrides.closedPositions ?? [],
+  ordersLastHour: overrides.ordersLastHour ?? 0,
   now,
 });
 
@@ -39,6 +41,11 @@ test("paper risk assessment approves a clean intent within the virtual budget", 
   assert.deepEqual(verdict.violations, []);
 });
 
+test("paper risk assessment enforces the rolling hourly order limit", () => {
+  const verdict = run({ ordersLastHour: 10 });
+  assert.equal(verdict.approved, false);
+  assert.ok(codes(verdict).includes("ORDER_RATE_LIMIT"));
+});
 test("paper risk assessment enforces the configured order cap", () => {
   const verdict = run({ evaluation: { notionalQuote: 501 } });
   assert.equal(verdict.approved, false);
