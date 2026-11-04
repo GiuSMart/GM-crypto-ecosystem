@@ -5,6 +5,7 @@ import { Badge, Callout, Card, CardHead, Empty } from "@/components/ui";
 import { all } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { ago, dt } from "@/lib/format";
+import { orderReferrals } from "@/lib/referrals";
 import { listPlans, paymentsEnabled } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,7 @@ type RefRow = {
   platform: string;
   name: string;
   url: string;
+  category: string | null;
   tagline: string | null;
   description: string | null;
   how_it_works: string | null;
@@ -36,6 +38,7 @@ type RefRow = {
   affiliate_confirmed: number;
   active: number;
   sort: number;
+  updated_at: string;
 };
 
 export default async function AdminPage() {
@@ -46,7 +49,9 @@ export default async function AdminPage() {
      FROM users u ORDER BY u.created_at ASC`,
   );
   const plans = listPlans();
-  const referrals = all<RefRow>("SELECT * FROM referrals ORDER BY sort ASC");
+  // Same canonical order as the public Affiliate Center, so what the admin sees
+  // in the table matches what clients will see grouped on the page.
+  const referrals = orderReferrals(all<RefRow>("SELECT * FROM referrals"));
   const counts = {
     opportunities: all<{ c: number }>("SELECT COUNT(*) AS c FROM opportunities")[0]?.c ?? 0,
     scans: all<{ c: number }>("SELECT COUNT(*) AS c FROM scan_runs")[0]?.c ?? 0,
@@ -116,7 +121,9 @@ export default async function AdminPage() {
                     <Badge tone={u.live_authorized ? "warn" : "neutral"}>{u.live_authorized ? "autorizzato" : "no"}</Badge>
                   </td>
                   <td>
-                    <AdminUserControls user={u} plans={plans.map((p) => ({ id: p.id, name: p.name }))} />
+                    {/* node:sqlite rows have a null prototype, and React refuses to hand those
+                        to a Client Component: spread them into plain objects first. */}
+                    <AdminUserControls user={{ ...u }} plans={plans.map((p) => ({ id: p.id, name: p.name }))} />
                   </td>
                 </tr>
               ))}
@@ -135,7 +142,7 @@ export default async function AdminPage() {
           />
           <div className="space-y-3 px-4 py-4">
             {plans.map((p) => (
-              <PlanPriceRow key={p.id} plan={p} />
+              <PlanPriceRow key={p.id} plan={{ ...p }} />
             ))}
             <p className="text-[10px] leading-relaxed text-muted">
               I prezzi modificati non attivano addebiti: il flag <code className="text-paper">payments_configured</code> resta 0 finché non viene collegato un
@@ -167,6 +174,7 @@ export default async function AdminPage() {
               <thead>
                 <tr>
                   <th>Piattaforma</th>
+                  <th>Categoria</th>
                   <th>Link</th>
                   <th>Verificato</th>
                   <th>Attivo</th>
@@ -181,6 +189,7 @@ export default async function AdminPage() {
                       <div className="text-xs font-medium text-paper">{r.name}</div>
                       <div className="text-[10px] text-muted">{r.platform}</div>
                     </td>
+                    <td className="text-[10px] text-muted">{r.category ?? "—"}</td>
                     <td className="max-w-[280px] truncate text-[10px] text-muted">{r.url}</td>
                     <td>
                       <Badge tone={r.verified ? "pos" : "warn"}>{r.verified ? "sì" : "no"}</Badge>
@@ -188,7 +197,7 @@ export default async function AdminPage() {
                     <td>
                       <Badge tone={r.active ? "gold" : "neutral"}>{r.active ? "attivo" : "off"}</Badge>
                     </td>
-                    <td className="text-[10px] text-muted">{dt(new Date(r.sort * 0))}</td>
+                    <td className="text-[10px] text-muted">{dt(r.updated_at)}</td>
                     <td className="text-right">
                       <Mutate url="/api/admin" body={{ action: "delete_referral", id: r.id }} label="Elimina" confirmText={`Eliminare il referral ${r.name}?`} />
                     </td>

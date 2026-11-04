@@ -82,6 +82,15 @@ Il sizing cerca la taglia con margine migliore tra 0.25×, 0.5×, 1×, 1.5×, 2�
 - Scansione: al massimo 5-6 direzioni (le migliori per spread lordo) per non bruciare budget di rate limit.
 - Limite di piano: scansioni/ora convertite in token bucket per minuto.
 
+## Test
+
+Due livelli, entrambi su `node:test` senza dipendenze aggiuntive:
+
+- `npm test` — test unitari e di rotta veloci. Coprono il motore, il rate limit, le migrazioni SQLite e gli handler di `/api/admin` eseguiti davvero, con `next/headers` mockato e un database temporaneo. Girano su ogni push.
+- `npm run test:e2e` — test end-to-end contro un vero `next start` (richiede `npm run build` prima). Avviano il server su una porta libera con `GM_DB_PATH` e `GM_DATA_DIR` temporanei e verificano l'Affiliate Center via HTTP con una sessione reale: raggruppamento per categoria, ordine per `sort` e nome, offerte spente escluse, id univoci, corrispondenza tra pagina e pannello amministrativo, database nuovo e database migrato da una versione precedente. Non fanno parte di `npm test` perché l'avvio del server costa qualche secondo.
+
+Le migrazioni sono testate su un database costruito con lo schema precedente, non su un database già aggiornato: è l'unico modo per accorgersi che un `ALTER TABLE` con `DEFAULT` materializza il valore su tutte le righe esistenti e rende inutile il backfill che cerca celle vuote.
+
 ## Sicurezza
 
 - Password: scrypt (N=16384, r=8, p=1), salt per utente, formato auto-descrittivo.
