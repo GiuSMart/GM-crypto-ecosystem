@@ -39,7 +39,7 @@ This file does not itself satisfy those obligations.
 3. Refresh the baseline only after human review; never regenerate it automatically in CI.
 4. Preserve upstream LICENSE, NOTICE, attribution, and source-offer materials for the
    exact versions and artifacts distributed.
-5. Generate a fresh machine-readable report with `npm run licenses:report` before a release.
+5. Generate a fresh machine-readable report with `npm run licenses:report` and collect upstream license texts with `npm run licenses:notices` before a release. The latter writes `artifacts/THIRD_PARTY_NOTICES.generated.md`; use `npm run licenses:notices:strict` as a release gate after resolving all missing notices.
 
 ## Scope
 
