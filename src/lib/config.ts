@@ -190,6 +190,22 @@ export const VENUES: Venue[] = [
     verifiedAt: "2026-11-01",
   },
   {
+    id: "okx",
+    name: "OKX Spot",
+    kind: "exchange",
+    logo: "okx",
+    status: "public-api",
+    publicMarketData: true,
+    balanceReadable: false,
+    orderPlacement: false,
+    withdrawalSupported: null,
+    apiDocs: "https://my.okx.com/docs-v5/en/",
+    fee: null,
+    rateLimitNote: "Public EEA REST market-data calls are serialized by the adapter with conservative spacing; monitor HTTP 429 responses and OKX's current regional limits.",
+    notes: "Spot instruments, tickers and order books use the EEA API host eea.okx.com and require no credentials. This build does not connect private balances or place orders. Configure the actual account fee tier before using OKX in executable net-margin calculations.",
+    verifiedAt: "2026-11-02",
+  },
+  {
     id: "phantom",
     name: "Phantom",
     kind: "wallet",
@@ -524,4 +540,4 @@ export const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
  * the Coinbase brokerage host (api.coinbase.com, HTTP 401 without credentials) are not
  * public market data and must not be added to this list.
  */
-export const ALLOWED_VENUE_HOSTS = ["api.kraken.com", "api.exchange.coinbase.com", "api.bybit.eu", "api.bytick.eu", "api-testnet.bybit.eu", "api.bybit.com", "api.bytick.com", "api-testnet.bybit.com"];
+export const ALLOWED_VENUE_HOSTS = ["api.kraken.com", "api.exchange.coinbase.com", "api.bybit.eu", "api.bytick.eu", "api-testnet.bybit.eu", "api.bybit.com", "api.bytick.com", "api-testnet.bybit.com", "eea.okx.com"];
