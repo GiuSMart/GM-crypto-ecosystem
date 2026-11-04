@@ -1,5 +1,6 @@
 import { guardedMutation, jsonError, jsonOk } from "@/lib/api";
 import { clientMeta, currentUser } from "@/lib/auth";
+import { rateLimit } from "@/lib/rate-limit";
 import { all, run } from "@/lib/db";
 import { getHistoricalCandles } from "@/lib/venues/kraken";
 import { assertMarketDataDisplayAllowed } from "@/lib/venues/licensing";
@@ -35,6 +36,10 @@ export async function GET(req: Request) {
   const user = await currentUser();
   const denied = adminOnly(user);
   if (denied) return denied;
+  const { ip } = await clientMeta();
+  if (!rateLimit(`history:candles:${user.id}:${ip}`, 30, 60_000).ok) {
+    return jsonError("Troppe richieste sullo storico OHLC. Attendi qualche secondo.", 429);
+  }
 
   try {
     assertMarketDataDisplayAllowed("kraken", "internal");
