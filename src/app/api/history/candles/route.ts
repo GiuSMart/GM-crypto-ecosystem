@@ -25,17 +25,11 @@ type StoredCandle = {
   fetched_at: string;
 };
 
-function adminOnly(user: Awaited<ReturnType<typeof currentUser>>) {
-  if (!user) return jsonError("Autenticazione richiesta.", 401);
-  if (user.role !== "admin") return jsonError("Storico OHLC riservato all'amministratore del progetto.", 403);
-  return null;
-}
-
 /** Read the locally cached, operator-only candle history. */
 export async function GET(req: Request) {
   const user = await currentUser();
-  const denied = adminOnly(user);
-  if (denied) return denied;
+  if (!user) return jsonError("Autenticazione richiesta.", 401);
+  if (user.role !== "admin") return jsonError("Storico OHLC riservato all'amministratore del progetto.", 403);
   const { ip } = await clientMeta();
   if (!rateLimit(`history:candles:${user.id}:${ip}`, 30, 60_000).ok) {
     return jsonError("Troppe richieste sullo storico OHLC. Attendi qualche secondo.", 429);
