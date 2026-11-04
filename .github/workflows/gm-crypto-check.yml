@@ -31,6 +31,8 @@ jobs:
         run: npm run licenses:check
       - name: Generate upstream third-party notices
         run: npm run licenses:notices
+      - name: Generate CycloneDX SBOM
+        run: npm run licenses:sbom
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
       - run: npm run typecheck
