@@ -58,9 +58,6 @@ GM_WORKER_ENABLED=true npm run worker # worker server continuo (una sola istanza
 - **Multi-tenant**: account, piani (FREE/PRO/PREMIUM con limiti applicati su scansioni e API key), branding per utente e globale.
 - **Affiliate Center**: 7 referral gestiti da database, modificabili dall'admin senza deploy.
 - **Sicurezza**: scrypt, sessioni revocabili, cookie httpOnly, CSRF same-origin, rate limiting, AES-256-GCM per le API key, audit log, segregazione per `user_id`.
-- **Risk Guard indipendente** (`src/lib/engine/risk-guard.ts`): codice deterministico, senza AI, che blocca un'intenzione quando capitale, esposizione, perdita giornaliera, drawdown, liquidità, slippage, fee non verificata o dati obsoleti oltrepassano i limiti. Non ancora collegato al flusso di apertura paper.
-- **Indicatori deterministici** (`src/lib/engine/indicators.ts`): SMA, EMA, RSI (Wilder), MACD, Bollinger, ATR, VWAP e imbalance del book, con test sui valori attesi. Non ancora esposti in dashboard.
-- **Gate licenze market data** (`src/lib/venues/licensing.ts`): nessun dato di venue può essere mostrato a un cliente finché la licenza non è verificata.
 
 ## Worker server (prototipo operativo)
 
@@ -79,10 +76,6 @@ GM_WORKER_ENABLED=true npm run worker # worker server continuo (una sola istanza
 ## Documentazione
 
 - [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) — controlli obbligatori prima del rilascio e del lancio commerciale
-
-- [`docs/GM_MASTER_EXECUTION_PLAN.md`](docs/GM_MASTER_EXECUTION_PLAN.md) — audit del repository, roadmap P0-P7, matrice delle dipendenze e criteri di completamento
-
-- [`docs/OKX_DATA_LICENSING.md`](docs/OKX_DATA_LICENSING.md) — verifica delle condizioni di licenza dei market data OKX (dati non mostrabili a clienti senza consenso scritto)
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — livelli, modello dati, sicurezza, scala, migrazione Postgres
 - [`docs/PHASES.md`](docs/PHASES.md) — stato reale fase per fase, con costi e limiti
