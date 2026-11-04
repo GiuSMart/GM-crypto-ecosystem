@@ -100,3 +100,6 @@ Next.js (MIT), React (MIT), Tailwind CSS (MIT), TypeScript (Apache-2.0), tsx (MI
 ## Avvertenza
 
 Strumento di analisi e simulazione. Non è consulenza finanziaria. L'arbitraggio comporta rischio di esecuzione, latenza, controparte e cambio. Verifica sempre le commissioni del tuo tier reale.
+## Proprietary code and third-party licensing
+
+GM Crypto Ecosystem's original code is proprietary and all rights are reserved; access to this private repository does not grant a license. Third-party npm packages retain their own licenses and notices. See [LICENSE](LICENSE), [Third-party notices](docs/THIRD_PARTY_NOTICES.md), and the [licensing and permissions register](docs/LICENSING_COMPLIANCE.md). Run `npm run licenses:check` locally; CI blocks new unknown or unapproved dependency licenses. The commercial multi-tenant product remains blocked from distributing exchange data until the required written provider permissions are obtained.

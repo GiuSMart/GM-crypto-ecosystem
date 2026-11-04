@@ -14,7 +14,12 @@
     "test": "node --import tsx --test tests/*.test.ts",
     "scan": "tsx scripts/scan.ts",
     "db:info": "tsx scripts/db-info.ts",
-    "worker": "tsx scripts/worker.ts"
+    "worker": "tsx scripts/worker.ts",
+    "licenses:check": "node scripts/check-licenses.mjs",
+    "licenses:report": "node scripts/check-licenses.mjs --report",
+    "licenses:notices": "node scripts/generate-third-party-notices.mjs",
+    "licenses:notices:strict": "node scripts/generate-third-party-notices.mjs --strict",
+    "licenses:sbom": "node scripts/generate-sbom.mjs"
   },
   "dependencies": {
     "next": "16.4.3",
@@ -29,5 +34,6 @@
     "tailwindcss": "4.3.3",
     "tsx": "4.23.15",
     "typescript": "5.9.3"
-  }
+  },
+  "license": "UNLICENSED"
 }
