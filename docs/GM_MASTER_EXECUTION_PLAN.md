@@ -283,14 +283,14 @@ tutti eseguiti su questo albero di lavoro il 2026-11-04.
 
 Questo aggiornamento è preparato su branch dedicato, basato sul main ripristinato. Non è ancora stato unito e le verifiche CI sul nuovo head sono in attesa.
 
-- openPaperTrade() ora chiama evaluatePaperRisk() prima dell'INSERT; blocchi e approvazioni vengono scritti nell'audit log.
+- openPaperTrade() ora chiama evaluatePaperRisk() prima dell'INSERT; snapshot, decisione e INSERT sono serializzati con BEGIN IMMEDIATE, così aperture concorrenti non possono superare i limiti di esposizione o frequenza. Blocchi e approvazioni vengono scritti nell'audit log.
 - Il portfolio è costruito esclusivamente dalle righe paper_trades dello stesso user_id; il budget iniziale è virtuale (1.000 unità quote) e non rappresenta saldi reali.
 - Limiti applicati: massimo ordine, esposizione aggregata/per venue/per strategia, perdita realizzata UTC giornaliera, drawdown realizzato, fee verificate, slippage, età dati, liquidità e numero di aperture nella finestra mobile di un'ora.
 - Il drawdown è calcolato sul P&L realizzato: le perdite non realizzate delle posizioni aperte non sono mark-to-market e restano una limitazione dichiarata.
 - Live rimane impossibile: executeLiveOrder() continua a lanciare errore e LIVE_EXECUTION_ENABLED resta false.
 - Kraken OHLC: acquisizione e storage delle sole candele chiuse, intervalli consentiti, validazione dei valori, cursor last, deduplicazione/upsert e snapshot indicatori.
 - Endpoint storico admin-only; nessuna esposizione ai tenant mentre i diritti di visualizzazione commerciale Kraken restano non verificati.
-- Test aggiunti per paper-risk integration e parsing OHLC; esito finale da confermare sulla CI del PR.
+- GitHub Actions run #251 sul commit 2a774e21: npm ci, audit produzione (0 vulnerabilità), typecheck, test **100/100** e build tutti verdi. Il build conserva un warning non bloccante di tracing filesystem dinamico in src/lib/paths.ts.
 
 ## Aggiornamento roadmap
 
