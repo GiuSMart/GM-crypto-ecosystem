@@ -22,15 +22,18 @@ process.env.GM_DEMO_PASSWORD = "Demo-Route-Test-a1!";
  * request would carry: the session token is the only thing a test sets.
  */
 let sessionToken: string | null = null;
-mock.module("next/headers", {
-  exports: {
-    cookies: async () => ({
-      get: (name: string) => (sessionToken ? { name, value: sessionToken } : undefined),
-    }),
-    headers: async () =>
-      new Headers({ host: "localhost:3000", "x-forwarded-for": "127.0.0.1", "user-agent": "node-test" }),
-  },
-});
+const MOCKED_HEADERS = {
+  cookies: async () => ({
+    get: (name: string) => (sessionToken ? { name, value: sessionToken } : undefined),
+  }),
+  headers: async () =>
+    new Headers({ host: "localhost:3000", "x-forwarded-for": "127.0.0.1", "user-agent": "node-test" }),
+};
+// `exports` only exists from Node 25.9 (it replaced defaultExport/namedExports);
+// CI still runs Node 22, where the old spelling is the one that works and the
+// new one is silently ignored. Pick by runtime so both versions mock for real.
+const NODE_MAJOR = Number(process.versions.node.split(".")[0]);
+mock.module("next/headers", NODE_MAJOR >= 26 ? { exports: MOCKED_HEADERS } : { namedExports: MOCKED_HEADERS });
 
 // Loaded in a hook rather than at module scope: the mock has to be in place
 // first, and tsx compiles these tests as CommonJS where top-level await is out.
