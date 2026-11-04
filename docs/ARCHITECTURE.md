@@ -90,6 +90,7 @@ Il sizing cerca la taglia con margine migliore tra 0.25×, 0.5×, 1×, 1.5×, 2�
 - Rate limiting in-process (token bucket) su login (8/min IP), registrazione (3/10min), mutazioni (10-30/min utente).
 - Segreti: AES-256-GCM, chiave master da `GM_ENCRYPTION_KEY` o `data/master.key` (0600). Mai loggati, mai restituiti.
 - URL esterni limitati a host noti (`ALLOWED_VENUE_HOSTS`) per ridurre superficie SSRF.
+- Content-Security-Policy su ogni risposta (`src/lib/security-headers.ts`): `default-src 'self'`, nessuna origine remota per script/stili/font/immagini, `object-src`, `base-uri` e `frame-ancestors` a `'none'`, `form-action 'self'`, `upgrade-insecure-requests` in produzione. `script-src` include `'unsafe-inline'` perché il payload di idratazione dell'App Router è inline e non c'è un middleware che coni un nonce; `'unsafe-eval'` e `ws:`/`wss:` esistono solo in sviluppo (source map webpack e hot reload).
 - Nessuna seed phrase raccolta; il form wallet rifiuta input multi-parola e il form API key rifiuta valori sospetti.
 
 ### Debito tecnico dichiarato

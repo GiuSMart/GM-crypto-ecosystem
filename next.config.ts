@@ -1,16 +1,8 @@
 import type { NextConfig } from "next";
+import { buildSecurityHeaders } from "./src/lib/security-headers";
 
-const securityHeaders = [
-  { key: "X-Frame-Options", value: "DENY" },
-  { key: "X-Content-Type-Options", value: "nosniff" },
-  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  { key: "Permissions-Policy", value: "geolocation=(), microphone=(), camera=(), payment=(), usb=()" },
-  // HSTS is emitted only for production builds. Enable it only when the public
-  // application is served exclusively over HTTPS.
-  ...(process.env.NODE_ENV === "production"
-    ? [{ key: "Strict-Transport-Security", value: "max-age=31536000" }]
-    : []),
-];
+const isProduction = process.env.NODE_ENV === "production";
+const securityHeaders = buildSecurityHeaders({ production: isProduction });
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
