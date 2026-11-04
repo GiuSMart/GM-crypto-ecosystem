@@ -127,7 +127,9 @@ export async function getHistoricalCandles(input: {
   const resultKey = Object.keys(result).find((key) => key !== "last" && Array.isArray(result[key]));
   if (!resultKey) throw new Error("Kraken: risposta OHLC senza serie di candele.");
   const rows = result[resultKey] as KrakenOhlcRow[];
-  const nowSeconds = Math.floor((input.nowMs ?? Date.now()) / 1000);
+  const nowMs = input.nowMs ?? Date.now();
+  if (!Number.isFinite(nowMs) || nowMs < 0) throw new RangeError("Orologio di riferimento OHLC non valido.");
+  const nowSeconds = Math.floor(nowMs / 1000);
   const intervalSeconds = input.intervalMinutes * 60;
   const candles: HistoricalCandle[] = [];
 
@@ -149,6 +151,7 @@ export async function getHistoricalCandles(input: {
     };
     if (
       !Number.isSafeInteger(candle.openTime) ||
+      !Number.isSafeInteger(candle.trades) ||
       candle.openTime < 0 ||
       ![candle.open, candle.high, candle.low, candle.close, candle.vwap, candle.volume, candle.trades].every(Number.isFinite) ||
       candle.open <= 0 ||
