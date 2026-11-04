@@ -278,3 +278,23 @@ tutti eseguiti su questo albero di lavoro il 2026-11-04.
    è il controllo che rende sicuro tutto il resto).
 5. Test di isolamento tenant con due account reali.
 6. Candele storiche (P3) per alimentare gli indicatori già pronti.
+
+## 14. Aggiornamento implementazione — branch feat/risk-guard-paper-and-historical-candles
+
+Questo aggiornamento è preparato su branch dedicato, basato sul main ripristinato. Non è ancora stato unito e le verifiche CI sul nuovo head sono in attesa.
+
+- openPaperTrade() ora chiama evaluatePaperRisk() prima dell'INSERT; blocchi e approvazioni vengono scritti nell'audit log.
+- Il portfolio è costruito esclusivamente dalle righe paper_trades dello stesso user_id; il budget iniziale è virtuale (1.000 unità quote) e non rappresenta saldi reali.
+- Limiti applicati: massimo ordine, esposizione aggregata/per venue/per strategia, perdita realizzata UTC giornaliera, drawdown realizzato, fee verificate, slippage, età dati, liquidità e numero di aperture nella finestra mobile di un'ora.
+- Il drawdown è calcolato sul P&L realizzato: le perdite non realizzate delle posizioni aperte non sono mark-to-market e restano una limitazione dichiarata.
+- Live rimane impossibile: executeLiveOrder() continua a lanciare errore e LIVE_EXECUTION_ENABLED resta false.
+- Kraken OHLC: acquisizione e storage delle sole candele chiuse, intervalli consentiti, validazione dei valori, cursor last, deduplicazione/upsert e snapshot indicatori.
+- Endpoint storico admin-only; nessuna esposizione ai tenant mentre i diritti di visualizzazione commerciale Kraken restano non verificati.
+- Test aggiunti per paper-risk integration e parsing OHLC; esito finale da confermare sulla CI del PR.
+
+## Aggiornamento roadmap
+
+- Risk Guard su ogni apertura paper: IMPLEMENTATO su questa branch; chiusure non bloccate per consentire la riduzione dell'esposizione.
+- OHLC Kraken: IMPLEMENTATO per uso interno admin, con limite massimo 720 righe per risposta e filtro della candela non ancora chiusa.
+- Restano da fare: backfill multi-pagina, backtest senza look-ahead, P&L mark-to-market, riempimenti parziali e verifica end-to-end.
+- La licenza Kraken è ancora unreviewed: OHLC e indicatori non sono disponibili ai tenant o a terzi.
