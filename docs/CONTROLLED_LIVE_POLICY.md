@@ -18,7 +18,7 @@ The owner must configure and approve: quote currency; maximum notional per order
 2. Active owner-approved preventive policy.
 3. Separate final owner approval after technical verification.
 4. Implemented and tested order router and venue adapter.
-5. Valid Revolut X credential with trade-only permission and withdrawals disabled.
+5. Valid Revolut X credential with full trading access (Revolut X permission label) and no withdrawal operation exposed by GM.
 6. Fresh authenticated balance, active orders, history and fills.
 7. Emergency stop inactive.
 8. All notional, daily-loss, exposure, frequency, spread, slippage and data-age checks pass.
