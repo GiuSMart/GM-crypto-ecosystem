@@ -28,7 +28,15 @@ for (const [lockPathName, metadata] of Object.entries(lock.packages ?? {})) {
       { name: "npm:optional", value: String(Boolean(metadata.optional)) }
     ]
   };
-  if (metadata.integrity) component.hashes = [{ alg: "SHA-512", content: metadata.integrity.replace(/^sha512-/, "") }];
+  if (metadata.integrity) {
+    component.hashes = metadata.integrity.split(/\\s+/).flatMap((sri) => {
+      const separator = sri.indexOf("-");
+      if (separator < 0) return [];
+      const algorithm = sri.slice(0, separator).toUpperCase().replace("SHA", "SHA-");
+      if (!["SHA-1", "SHA-256", "SHA-384", "SHA-512"].includes(algorithm)) return [];
+      return [{ alg: algorithm, content: Buffer.from(sri.slice(separator + 1), "base64").toString("hex") }];
+    });
+  }
   components.push(component);
 }
 
