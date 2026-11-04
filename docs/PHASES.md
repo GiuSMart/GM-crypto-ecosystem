@@ -110,3 +110,21 @@ Stato reale al primo prototipo. Nessuna voce è dichiarata completata senza impl
 | Affiliate Center | ✅ funzionante |
 | SaaS multi-tenant + white-label | ✅ base solida, pagamenti off |
 | Sicurezza | ✅ solida base, 2FA/backup/WAF mancanti |
+
+---
+
+## Moduli futuri — decisi, non in scope
+
+Registrati qui perché l'architettura li preveda senza implementarli adesso. Nessuno di questi ha codice, test o migrazioni nel repository: la priorità è chiudere e stabilizzare piattaforma AI e GM Crypto Ecosystem.
+
+### Sicultura / GM Funding Intelligence (rinviato)
+
+- **Progetto promotore**: Sicultura — gestione e sviluppo di fondi per AI, tecnologia e innovazione.
+- **Soggetto giuridico**: non ancora costituito. Nessuna forma (ETS, APS, ODV, SMS, ASD, CER, fondazione, impresa sociale) è stata scelta, e la scelta non va fatta per inseguire un singolo bando.
+- **Missione**: multidisciplinare (AI, tecnologia, cultura, sport, formazione, energia, sociale), con agenti specializzati per settore.
+- **Cosa farebbe**: ricerca bandi (Sicilia, Italia, UE, programmi internazionali), verifica requisiti, preparazione candidature, monitoraggio scadenze, registro separato di contributi pubblici, donazioni, sponsorizzazioni e investimenti.
+- **Vincoli invariati**: budget 0 €, nessun servizio a pagamento, nessuna spesa o operazione finanziaria automatica, nessun IBAN o documento personale raccolto prima della costituzione dell'ente.
+- **Autorizzazione umana obbligatoria** per inviare dichiarazioni, firmare, assumere impegni, fornire coordinate bancarie e accettare finanziamenti. L'agente non inventa requisiti, dichiarazioni o dati societari.
+- **Prima di partire servono**: forma giuridica e territorio, un catalogo di fonti ufficiali verificabili, e la scelta se le Skill di ricerca restino interne o esterne.
+
+Motivo del rinvio: ogni funzionalità di questo modulo dipende da fonti normative variabili e da un soggetto giuridico che non esiste; costruirla ora significherebbe scrivere requisiti non verificabili.

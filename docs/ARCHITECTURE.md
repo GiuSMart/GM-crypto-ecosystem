@@ -87,7 +87,7 @@ Il sizing cerca la taglia con margine migliore tra 0.25×, 0.5×, 1×, 1.5×, 2�
 - Password: scrypt (N=16384, r=8, p=1), salt per utente, formato auto-descrittivo.
 - Sessioni: token casuale 32 byte, in DB solo SHA-256, cookie `httpOnly` + `SameSite=Lax` + `Secure` in produzione, TTL 7 giorni, revoca singola o totale.
 - CSRF: controllo `Sec-Fetch-Site`/`Origin` su ogni mutazione.
-- Rate limiting in-process (token bucket) su login (8/min IP), registrazione (3/10min), mutazioni (10-30/min utente).
+- Rate limiting in-process (token bucket) su login (8/min IP), registrazione (3/10min), mutazioni (10-30/min utente). L'IP viene da `x-real-ip` (header a valore singolo che il reverse proxy sovrascrive) oppure dall'**ultimo** hop di `x-forwarded-for`: il primo hop è scrivibile dal client e consentiva di ruotare il bucket a ogni richiesta (`src/lib/client-ip.ts`).
 - Segreti: AES-256-GCM, chiave master da `GM_ENCRYPTION_KEY` o `data/master.key` (0600). Mai loggati, mai restituiti.
 - URL esterni limitati a host noti (`ALLOWED_VENUE_HOSTS`) per ridurre superficie SSRF.
 - Nessuna seed phrase raccolta; il form wallet rifiuta input multi-parola e il form API key rifiuta valori sospetti.

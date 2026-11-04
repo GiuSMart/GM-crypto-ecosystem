@@ -1,5 +1,6 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { resolveClientIp } from "./client-ip";
 import { COOKIE_NAME, SESSION_TTL_MS } from "./config";
 import { all, one, run } from "./db";
 import { newId, randomToken, sha256hex, verifyPassword } from "./crypto";
@@ -116,7 +117,7 @@ export async function requireAdmin(): Promise<SessionUser> {
 
 export async function clientMeta() {
   const h = await headers();
-  const ip = (h.get("x-forwarded-for") ?? "").split(",")[0].trim() || h.get("x-real-ip") || "local";
+  const ip = resolveClientIp((name) => h.get(name));
   return { ip, userAgent: h.get("user-agent") };
 }
 
