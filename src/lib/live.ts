@@ -56,11 +56,13 @@ export function liveBlockers(input: {
   authorization: LiveAuthorization | null;
   settings: EngineSettings;
   credentialCount: number;
+  finalOwnerApproval?: boolean;
 }): string[] {
   const blockers: string[] = [];
   if (!input.settings.liveTradingEnabled) blockers.push("Interruttore live trading disattivato nelle impostazioni dell'account.");
   if (!input.authorization) blockers.push("Nessuna autorizzazione esplicita dell'amministratore.");
-  if (input.credentialCount === 0) blockers.push("Nessuna API key registrata con permessi in sola lettura.");
+  if (input.credentialCount === 0) blockers.push("Nessuna credenziale Revolut X registrata e verificata.");
+  if (input.finalOwnerApproval !== true) blockers.push("Autorizzazione finale del proprietario non registrata.");
   if (input.settings.maxOrderQuote <= 0) blockers.push("Limite di capitale per ordine non configurato.");
   blockers.push("Order router live non implementato in questa build: architettura predisposta, esecuzione impossibile per progetto.");
   return blockers;
