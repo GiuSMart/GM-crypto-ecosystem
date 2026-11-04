@@ -58,14 +58,17 @@ async function getPairIndex(): Promise<PairIndex> {
     if (entry.status !== "online") continue;
     const wsname = entry.wsname; // e.g. "BTC/USD"
     if (!wsname) continue;
-    altnameByWs.set(wsname, entry.altname);
-    wsByKey.set(key, wsname);
     const [base, quote] = wsname.split("/");
+    const pair = `${normaliseBase(base)}/${quote}`;
+    // The public universe uses normalised symbols (BTC, not Kraken's XBT).
+    // Key the lookup by the same pair so OHLC and order-book calls agree.
+    altnameByWs.set(pair, entry.altname);
+    wsByKey.set(key, pair);
     if (
       (ASSETS as readonly string[]).includes(normaliseBase(base)) &&
       (QUOTES as readonly string[]).includes(quote)
     ) {
-      supported.push(`${normaliseBase(base)}/${quote}`);
+      supported.push(pair);
     }
   }
   const index: PairIndex = { altnameByWs, wsByKey, supported: [...new Set(supported)] };
@@ -107,7 +110,7 @@ export async function getHistoricalCandles(input: {
   if (!allowedIntervals.includes(input.intervalMinutes)) {
     throw new RangeError("Intervallo OHLC Kraken non supportato.");
   }
-  if (typeof input.pair !== "string" || !/^[A-Z0-9]{2,12}\\/[A-Z0-9]{2,12}$/.test(input.pair)) {
+  if (typeof input.pair !== "string" || !/^[A-Z0-9]{2,12}\/[A-Z0-9]{2,12}$/.test(input.pair)) {
     throw new RangeError("Coppia di mercato non valida.");
   }
   if (input.since !== undefined && (!Number.isSafeInteger(input.since) || input.since < 0)) {
@@ -161,7 +164,9 @@ export async function getHistoricalCandles(input: {
   }
 
   candles.sort((a, b) => a.openTime - b.openTime);
-  return { candles, last: Number(result.last) };
+  const last = Number(result.last);
+  if (!Number.isSafeInteger(last) || last < 0) throw new Error("Kraken: cursore OHLC non valido.");
+  return { candles, last };
 }
 
 
