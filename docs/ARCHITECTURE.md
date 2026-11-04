@@ -90,12 +90,17 @@ Il sizing cerca la taglia con margine migliore tra 0.25×, 0.5×, 1×, 1.5×, 2�
 - Rate limiting in-process (token bucket) su login (8/min IP), registrazione (3/10min), mutazioni (10-30/min utente).
 - Segreti: AES-256-GCM, chiave master da `GM_ENCRYPTION_KEY` o `data/master.key` (0600). Mai loggati, mai restituiti.
 - URL esterni limitati a host noti (`ALLOWED_VENUE_HOSTS`) per ridurre superficie SSRF.
-- Content-Security-Policy su ogni risposta (`src/lib/security-headers.ts`): `default-src 'self'`, nessuna origine remota per script/stili/font/immagini, `object-src`, `base-uri` e `frame-ancestors` a `'none'`, `form-action 'self'`, `upgrade-insecure-requests` in produzione. `script-src` include `'unsafe-inline'` perché il payload di idratazione dell'App Router è inline e non c'è un middleware che coni un nonce; `'unsafe-eval'` e `ws:`/`wss:` esistono solo in sviluppo (source map webpack e hot reload).
 - Nessuna seed phrase raccolta; il form wallet rifiuta input multi-parola e il form API key rifiuta valori sospetti.
 
 ### Debito tecnico dichiarato
 
 2FA assente; rate limiter non distribuito; nessun backup automatico; SQLite non cifrato at-rest (solo i segreti applicativi); nessun WAF/reverse proxy.
+
+### Content-Security-Policy
+
+Ogni risposta porta una CSP costruita da `src/lib/security-headers.ts` (testata in `tests/security-headers.test.ts`), non scritta a mano in `next.config.ts`: `default-src 'self'`, nessuna origine remota per script, stili, font o immagini, `object-src`/`base-uri`/`frame-ancestors` a `'none'`, `form-action 'self'`, `upgrade-insecure-requests` in produzione.
+
+`script-src` include `'unsafe-inline'` perché il payload di idratazione dell'App Router è inline e non esiste un middleware che coni un nonce per richiesta: senza quel permesso le pagine si idratano a metà. La policy blocca quindi l'iniezione di script da origini remote, il framing e il dirottamento di `<base>`, ma non un `<script>` inline iniettato. `'unsafe-eval'` e `ws:`/`wss:` esistono solo in sviluppo (source map webpack, hot reload) e non raggiungono la produzione.
 
 ## Migrazione a PostgreSQL
 
