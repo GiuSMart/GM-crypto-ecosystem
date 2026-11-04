@@ -57,6 +57,12 @@ A code license such as MIT does not grant rights to market data, model weights, 
 API services, or hosted inference. No customer secrets, API keys, exchange credentials,
 or personal data may be sent to an agent without a separate security and privacy approval.
 
+### External agent toolkits considered (not currently vendored)
+
+- [Vercel Agent Skills](https://github.com/vercel-labs/agent-skills): repository declares MIT. The license covers that repository's code; review each selected skill, helper script, transitive dependency, and any referenced external service before copying it into GM.
+- [OKX Agent Trade Kit](https://github.com/okx/agent-trade-kit): repository declares MIT. This covers the toolkit code, not OKX API services, exchange data, trademarks, or the separate API Agreement. Do not infer commercial market-data or SaaS rights from the MIT license.
+- Neither toolkit is included in the current npm lockfile baseline. Adding or vendoring either requires a fresh version-pinned inventory and security review.
+
 ## 5. Regulatory perimeter — Italy / EU
 
 MiCA/CASP analysis depends on the actual service and customer relationship, not on the
