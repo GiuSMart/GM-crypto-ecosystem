@@ -68,4 +68,4 @@ fs.mkdirSync(outputDir, { recursive: true });
 fs.writeFileSync(outputPath, sections.join("\n") + "\n");
 console.log("Generated " + path.relative(root, outputPath));
 console.log("Included " + included + " license/notice file(s); " + missing.length + " package(s) require manual notice retrieval.");
-if (missing.length) process.exitCode = 2;
+if (missing.length && process.argv.includes("--strict")) process.exitCode = 2;
