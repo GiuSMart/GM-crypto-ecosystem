@@ -96,6 +96,12 @@ Il sizing cerca la taglia con margine migliore tra 0.25×, 0.5×, 1×, 1.5×, 2�
 
 2FA assente; rate limiter non distribuito; nessun backup automatico; SQLite non cifrato at-rest (solo i segreti applicativi); nessun WAF/reverse proxy.
 
+### Content-Security-Policy
+
+Ogni risposta porta una CSP costruita da `src/lib/security-headers.ts` (testata in `tests/security-headers.test.ts`), non scritta a mano in `next.config.ts`: `default-src 'self'`, nessuna origine remota per script, stili, font o immagini, `object-src`/`base-uri`/`frame-ancestors` a `'none'`, `form-action 'self'`, `upgrade-insecure-requests` in produzione.
+
+`script-src` include `'unsafe-inline'` perché il payload di idratazione dell'App Router è inline e non esiste un middleware che coni un nonce per richiesta: senza quel permesso le pagine si idratano a metà. La policy blocca quindi l'iniezione di script da origini remote, il framing e il dirottamento di `<base>`, ma non un `<script>` inline iniettato. `'unsafe-eval'` e `ws:`/`wss:` esistono solo in sviluppo (source map webpack, hot reload) e non raggiungono la produzione.
+
 ## Migrazione a PostgreSQL
 
 Lo schema è SQL portabile. Passi:
