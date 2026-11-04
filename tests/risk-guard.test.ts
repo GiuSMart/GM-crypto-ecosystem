@@ -19,6 +19,7 @@ const portfolio: PortfolioState = {
   venueExposureQuote: {},
   strategyExposureQuote: {},
   availableCapitalQuote: 1000,
+  ordersLastHour: 0,
   systemState: "operational",
   emergencyStop: false,
 };
@@ -108,6 +109,11 @@ test("venues and strategies outside the policy are refused", () => {
   assert.ok(codes(verdict).includes("STRATEGY_NOT_AUTHORIZED"));
 });
 
+test("rolling hourly paper order cap blocks additional opens", () => {
+  const verdict = run({ portfolio: { ordersLastHour: 10 } });
+  assert.equal(verdict.approved, false);
+  assert.ok(codes(verdict).includes("ORDER_RATE_LIMIT"));
+});
 test("notional above the per-order cap is refused, and 90% raises a warning", () => {
   const over = run({ intent: { notionalQuote: 501 } });
   assert.equal(over.approved, false);
