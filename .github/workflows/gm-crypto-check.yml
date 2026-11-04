@@ -29,6 +29,8 @@ jobs:
       - run: npm ci
       - name: Check dependency license policy
         run: npm run licenses:check
+      - name: Generate upstream third-party notices
+        run: npm run licenses:notices
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
       - run: npm run typecheck
