@@ -24,3 +24,25 @@ test("blocks an order when final owner approval is absent", () => {
   assert.equal(result.allowed, false);
   assert.ok(result.reasons.some((reason) => reason.includes("Autorizzazione finale")));
 });
+test("caps policy order size at the stricter authorization limit", () => {
+  const policy = {
+    mode: "controlled" as const, quoteCurrency: "EUR", maxOrderQuote: 250,
+    maxDailyLossQuote: 100, maxExposureQuote: 500, maxOrdersPerHour: 4,
+    maxSpreadPct: 0.25, maxSlippagePct: 0.2, maxBookAgeMs: 2000, allowedSymbols: ["BTC-EUR"],
+  };
+  const intent = {
+    symbol: "BTC-EUR", side: "buy" as const, quoteNotional: 225,
+    expectedSpreadPct: 0.1, expectedSlippagePct: 0.05, worstCaseLossAtStopQuote: 10,
+  };
+  const snapshot = {
+    liveSwitchEnabled: true, ownerPolicyAuthorizationActive: true, finalOwnerApproval: true,
+    routerImplemented: true, apiCredentialValid: true, apiPermission: "trade-only" as const,
+    withdrawalsEnabled: false, authorizationMaxOrderQuote: 200, authorizationMaxDailyLossQuote: 80,
+    killSwitchActive: false, balanceFresh: true, dailyRealizedLossQuote: 0,
+    currentExposureQuote: 0, ordersLastHour: 0, orderBookAgeMs: 100,
+  };
+  const result = evaluateControlledLiveOrder(intent, policy, snapshot);
+  assert.equal(result.allowed, false);
+  assert.equal(result.effectiveMaxOrderQuote, 200);
+  assert.ok(result.reasons.some((reason) => reason.includes("autorizzazione")));
+});
