@@ -11,7 +11,7 @@ Integrare nel GM Crypto Ecosystem le regole del manuale personale BTC come strat
 - Riserva: il paragrafo operativo indica attivazione al -8% complessivo. Il paragrafo di allocazione parla invece di ribassi superiori al 5%; questa discrepanza va risolta prima di qualsiasi automazione live. La prima implementazione usa il trigger operativo esplicito di -8%.
 - Uscita: ordini limite Take Profit calcolati dal prezzo medio di carico.
 - Target: +2%, +3%, +4%, +5%, +8% netti.
-- Fee ipotizzate dal manuale: 0,09% acquisto + 0,09% vendita.
+- Fee ipotizzate dal manuale: 0,09% acquisto + 0,09% vendita. La pagina ufficiale Revolut X Italia indica maker 0% e taker 0,09%; la fee effettiva dipende dal tipo di esecuzione (anche ordini parzialmente maker/taker). Il motore live dovrà usare il costo effettivo dei fill, non presumere che ogni limit sia maker.
 
 ## Calcolo Take Profit e verifica del PDF
 
@@ -23,7 +23,7 @@ Le percentuali sono convertite in frazioni prima del calcolo. Il PDF usa il molt
 
 ## Architettura prevista
 
-1. **Revolut X market adapter (read-only):** prezzi, candele e order book BTC/EUR attraverso endpoint ufficiali. Normalizzare i simboli e conservare timestamp, bid/ask e profondità.
+1. **Revolut X market adapter (read-only):** prezzi, candele e order book BTC/EUR attraverso endpoint ufficiali. Normalizzare i simboli e conservare timestamp, bid/ask e profondità. L'API usa autenticazione Ed25519 per gli endpoint autenticati; i dati pubblici disponibili non richiedono credenziali. Rispettare i limiti API documentati e trattare i valori monetari come stringhe decimali, senza conversioni floating-point premature.
 2. **BTC asymmetric engine:** classificazione delle fasce giornaliere, budget 40/40/20, prezzo medio di carico e target netti. Separato da engine/arbitrage.ts, che oggi confronta venue differenti.
 3. **AI Intelligence:** usare l'AI come livello di spiegazione e valutazione sopra dati reali e risultati del motore. L'AI non deve inventare segnali, prezzi, fee o liquidità; mostra sempre motivazioni, dati utilizzati e incertezza.
 4. **Paper trading:** simulare TWAP a tranche su 120 minuti, fill effettivi sul book, fee reali configurate, DCA e uscite limite. Registrare ogni decisione e confrontare risultati attesi/realizzati.
@@ -45,7 +45,7 @@ Misurare almeno: rendimento netto dopo fee, max drawdown, profit factor, win rat
 - La ripartizione 40/40/20 non significa che 10.000 EUR siano tutti investiti: il 40% crypto è un controvalore BTC già posseduto, non liquidità spendibile.
 - Il PDF usa 10.000 EUR per gli esempi di profitto. Il motore scala il profitto sul controvalore effettivamente acquistato/venduto.
 - Il trigger DCA è discordante tra sezione 2 (>5%) e sezione 4 (-8%); usare -8% solo per la simulazione iniziale e chiedere conferma prima del live.
-- Le commissioni 0,09% devono essere sostituite con quelle effettive dell'account Revolut X e del suo livello commissionale.
+- Il manuale usa 0,09% su entrambe le gambe, ipotesi prudente per due fill taker. La pagina ufficiale Revolut X Italia indica 0% maker e 0,09% taker: il sistema deve distinguere maker/taker e usare i costi effettivi dei fill e le condizioni dell'account.
 - Il PDF non specifica stop-loss, limite di perdita giornaliera, tranche TWAP, criteri quantitativi per supporti/resistenze, né regole di uscita d'emergenza. Non inventare questi parametri per il live.
 - I target non sono una promessa di rendimento: un ordine limite può non essere eseguito e il prezzo può scendere ulteriormente.
 
