@@ -484,5 +484,11 @@ export const REFERRALS = [
 export const COOKIE_NAME = "gm_session";
 export const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 
-/** Domain whitelist for outbound market-data calls (defence against SSRF). */
-export const ALLOWED_VENUE_HOSTS = ["api.kraken.com", "api.exchange.coinbase.com", "api.coinbase.com", "api.bybit.eu", "api.bytick.eu", "api-testnet.bybit.eu", "api.bybit.com", "api.bytick.com", "api-testnet.bybit.com"];
+/**
+ * Approved origins for public market-data adapters (SSRF guard).
+ * Enforced by assertAllowedVenueBase() in src/lib/venues/hosts.ts.
+ * Only unauthenticated public market-data hosts belong here: authenticated APIs such as
+ * the Coinbase brokerage host (api.coinbase.com, HTTP 401 without credentials) are not
+ * public market data and must not be added to this list.
+ */
+export const ALLOWED_VENUE_HOSTS = ["api.kraken.com", "api.exchange.coinbase.com", "api.bybit.eu", "api.bytick.eu", "api-testnet.bybit.eu", "api.bybit.com", "api.bytick.com", "api-testnet.bybit.com"];

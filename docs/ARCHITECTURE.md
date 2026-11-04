@@ -89,7 +89,7 @@ Il sizing cerca la taglia con margine migliore tra 0.25×, 0.5×, 1×, 1.5×, 2�
 - CSRF: controllo `Sec-Fetch-Site`/`Origin` su ogni mutazione.
 - Rate limiting in-process (token bucket) su login (8/min IP), registrazione (3/10min), mutazioni (10-30/min utente).
 - Segreti: AES-256-GCM, chiave master da `GM_ENCRYPTION_KEY` o `data/master.key` (0600). Mai loggati, mai restituiti.
-- URL esterni limitati a host noti (`ALLOWED_VENUE_HOSTS`) per ridurre superficie SSRF.
+- URL esterni: ogni adapter valida la propria base URL con `assertAllowedVenueBase()` (`src/lib/venues/hosts.ts`), che impone https, host in `ALLOWED_VENUE_HOSTS`, percorso `/`, nessuna porta/credenziale/query; le chiamate pubbliche usano `redirect: "error"` per non essere dirottate su altri host. Nella lista non rientra `api.coinbase.com`: è un'API autenticata (401 senza credenziali), non market data pubblico.
 - Nessuna seed phrase raccolta; il form wallet rifiuta input multi-parola e il form API key rifiuta valori sospetti.
 
 ### Debito tecnico dichiarato
