@@ -141,6 +141,31 @@ npm audit --omit=dev --audit-level=high
 
 Report the exact branch and commit SHA and actual outcome for every command. Run targeted tests for changed behavior. If a command cannot run, state why and leave it pending. Do not inherit a green result from an earlier commit.
 
+## Validation evidence — baseline
+
+Recorded on the handoff branch `chore/agent-skills-freebuff-handoff`, commit
+`d3e4f49860c1c58a1486105759313ea24e938c03` (2026-11-04), Node.js 26.13.0 locally while CI runs Node.js 22.
+Re-run these commands on the exact commit you are reviewing; do not inherit this result.
+
+| Command | Result |
+|---|---|
+| `npm ci` | install clean, 0 vulnerabilities reported |
+| `npm run typecheck` | exit 0 |
+| `npm test` | 32 tests, 32 pass, 0 fail (7 files) |
+| `npm run build` | exit 0 |
+| `npm audit --omit=dev --audit-level=high` | 0 vulnerabilities |
+
+CI (`GM Crypto CI`) reported `verify` success on both the `push` and `pull_request`
+runs for that commit.
+
+Open pull requests at the same time: #22 controlled-live policy, #21 this handoff,
+#20 BTC asymmetric strategy, #19 Affiliate Center, #18 venue host guard, #17 phase-1
+hardening, #16 OKX market data, #9/#8/#7 Dependabot, #2 Bybit docs. All were draft
+except #17 and #2. CI was green on the heads of #21, #20, #19 and #18; #22 failed
+`npm run typecheck` (its test fixture passes `apiPermission: "trade-only"`, a value the
+`LiveRiskSnapshot` type does not accept) and needed an owner decision on whether
+`trade-only` is a supported permission, so it was not modified.
+
 ## Definition of done
 
 - No unresolved Critical/High security or financial-correctness finding in the touched scope.
