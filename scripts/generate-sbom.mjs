@@ -29,7 +29,7 @@ for (const [lockPathName, metadata] of Object.entries(lock.packages ?? {})) {
     ]
   };
   if (metadata.integrity) {
-    component.hashes = metadata.integrity.split(/\\s+/).flatMap((sri) => {
+    component.hashes = metadata.integrity.split(/\s+/).flatMap((sri) => {
       const separator = sri.indexOf("-");
       if (separator < 0) return [];
       const algorithm = sri.slice(0, separator).toUpperCase().replace("SHA", "SHA-");
