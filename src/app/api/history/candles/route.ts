@@ -2,6 +2,7 @@ import { guardedMutation, jsonError, jsonOk } from "@/lib/api";
 import { clientMeta, currentUser } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
 import { all, run } from "@/lib/db";
+import { snapshot } from "@/lib/engine/indicators";
 import { getHistoricalCandles } from "@/lib/venues/kraken";
 import { assertMarketDataDisplayAllowed } from "@/lib/venues/licensing";
 
@@ -60,6 +61,7 @@ export async function GET(req: Request) {
     intervalMinutes: interval,
     scope: "operator-internal-only",
     count: candles.length,
+    indicators: snapshot(candles.map((candle) => candle.close)),
     candles,
   }, { headers: { "Cache-Control": "no-store" } });
 }
@@ -134,6 +136,7 @@ export async function POST(req: Request) {
       scope: "operator-internal-only",
       stored: result.candles.length,
       last: result.last,
+      indicators: snapshot(result.candles.map((candle) => candle.close)),
       candles: result.candles,
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (err) {
