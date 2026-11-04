@@ -81,6 +81,12 @@ GM_WORKER_ENABLED=true npm run worker # worker server continuo (una sola istanza
 - [`docs/PHASES.md`](docs/PHASES.md) — stato reale fase per fase, con costi e limiti
 - [`docs/API.md`](docs/API.md) — endpoint interni e payload
 
+## Competenze degli agenti AI
+
+- [docs/AGENT_SKILLS.md](docs/AGENT_SKILLS.md) — skills locali e installazione delle Vercel Agent Skills
+- [docs/FREEBUFF_HANDOFF.md](docs/FREEBUFF_HANDOFF.md) — istruzioni operative per Freebuff e revisione della PR #20
+- [AGENTS.md](AGENTS.md) — regole di progetto per gli agenti AI
+
 ## Licenze delle dipendenze
 
 Next.js (MIT), React (MIT), Tailwind CSS (MIT), TypeScript (Apache-2.0), tsx (MIT). `node:sqlite` è parte di Node.js (MIT). Nessuna dipendenza copyleft, nessuna licenza commerciale richiesta.
