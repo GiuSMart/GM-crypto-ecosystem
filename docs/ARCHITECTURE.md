@@ -98,9 +98,13 @@ Il sizing cerca la taglia con margine migliore tra 0.25×, 0.5×, 1×, 1.5×, 2�
 
 ### Content-Security-Policy
 
-Ogni risposta porta una CSP costruita da `src/lib/security-headers.ts` (testata in `tests/security-headers.test.ts`), non scritta a mano in `next.config.ts`: `default-src 'self'`, nessuna origine remota per script, stili, font o immagini, `object-src`/`base-uri`/`frame-ancestors` a `'none'`, `form-action 'self'`, `upgrade-insecure-requests` in produzione.
+La CSP è generata per richiesta da `proxy.ts` (Next.js 16) tramite `src/lib/security-headers.ts`. Il proxy crea 16 byte casuali con Web Crypto, codifica il nonce in Base64, sovrascrive gli eventuali header client `x-nonce` e `Content-Security-Policy`, inoltra entrambi a Next.js e restituisce la stessa policy nella risposta. Il matcher copre pagine, API, redirect e risposte 404.
 
-`script-src` include `'unsafe-inline'` perché il payload di idratazione dell'App Router è inline e non esiste un middleware che coni un nonce per richiesta: senza quel permesso le pagine si idratano a metà. La policy blocca quindi l'iniezione di script da origini remote, il framing e il dirottamento di `<base>`, ma non un `<script>` inline iniettato. `'unsafe-eval'` e `ws:`/`wss:` esistono solo in sviluppo (source map webpack, hot reload) e non raggiungono la produzione.
+La root layout legge gli header della richiesta tramite `headers()`, rendendo il rendering request-scoped: Next.js può estrarre il nonce dalla CSP inoltrata e applicarlo automaticamente agli script del framework e ai payload inline di idratazione. Le route che erano già dinamiche restano tali; anche `/_not-found` diventa dinamica. Il costo di rendering statico/ISR viene quindi esplicitato e non nascosto.
+
+In produzione `script-src` usa `'nonce-…' 'strict-dynamic'` e non contiene `'unsafe-inline'` né `'unsafe-eval'`. In sviluppo resta `'unsafe-eval'` per gli strumenti React/Next; `ws:` e `wss:` sono ammessi solo per hot reload. `style-src` mantiene temporaneamente `'unsafe-inline'`: il codice UI usa ancora attributi di stile React, che non sono autorizzati da un nonce applicato ai tag `<style>`. Rimuovere questa eccezione richiede una refactor separata degli style props e non è incluso in questa modifica.
+
+Il test unitario verifica policy, nonce e header; la CI verifica typecheck, test e build. L'esecuzione in browser resta necessaria per confermare che tutti gli script di idratazione siano effettivamente nonciati e che non compaiano violazioni CSP runtime.
 
 ## Migrazione a PostgreSQL
 
