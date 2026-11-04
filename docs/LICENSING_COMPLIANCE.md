@@ -18,6 +18,7 @@ receive source-code rights.
 - npm dependencies are inventoried in `licenses/third-party-baseline.json`.
 - `scripts/check-licenses.mjs` validates the lockfile against the reviewed baseline.
 - `scripts/generate-third-party-notices.mjs` collects upstream LICENSE/NOTICE/COPYING files from installed packages into a generated bundle; missing files are reported and can be made blocking with the strict command.
+- `scripts/generate-sbom.mjs` produces a CycloneDX 1.5 JSON SBOM from the npm lockfile.
 - New permissive dependencies may pass the automated gate; new copyleft, attribution,
   compound, missing, or unknown licenses require explicit review and baseline approval.
 - Existing LGPL/MPL/CC-BY entries are recorded exceptions, **not a statement that all
