@@ -5,7 +5,7 @@
 La richiesta indicava Python + FastAPI come preferenza per il motore. In questa prima release il motore è **TypeScript puro** (`src/lib/engine/arbitrage.ts`) perché:
 
 1. Il motore deve girare **accanto** alle API che servono la dashboard: un solo processo, un solo deploy, zero latenza di rete fra UI e calcolo.
-2. Le funzioni sono pure e deterministiche (nessun I/O, nessun `Date.now()` implicito), quindi testabili in isolamento — 13 test con `node:test`.
+2. Le funzioni sono pure e deterministiche (nessun I/O, nessun `Date.now()` implicito), quindi testabili in isolamento — 86 test con `node:test`.
 3. Con budget zero, un secondo servizio Python significherebbe un secondo host/container da gestire.
 
 Le API pubbliche (Kraken/Coinbase) sono le stesse raggiungibili da Python; il motore è un puro calcolo su order book. Se servirà un servizio Python (es. backtesting numerico pesante), il contratto è già definito da `Evaluation` e `CostModel`: basta esporre `/scan` e consumarlo. Vedi `docs/PHASES.md`, Fase 3.
@@ -34,6 +34,8 @@ Le API pubbliche (Kraken/Coinbase) sono le stesse raggiungibili da Python; il mo
 │ market.ts            (cache TTL, scan, persistenza)        │
 │ paper.ts, live.ts, plans.ts, network-fees.ts               │
 │ ai/intelligence.ts   (analisi deterministica grounded)     │
+│ engine/risk-guard.ts (limiti deterministici, nessuna AI)   │
+│ engine/indicators.ts (indicatori puri e testati)           │
 └──────────────────────────┬─────────────────────────────────┘
                            │
 ┌──────────────────────────▼─────────────────────────────────┐
@@ -89,7 +91,7 @@ Il sizing cerca la taglia con margine migliore tra 0.25×, 0.5×, 1×, 1.5×, 2�
 - CSRF: controllo `Sec-Fetch-Site`/`Origin` su ogni mutazione.
 - Rate limiting in-process (token bucket) su login (8/min IP), registrazione (3/10min), mutazioni (10-30/min utente).
 - Segreti: AES-256-GCM, chiave master da `GM_ENCRYPTION_KEY` o `data/master.key` (0600). Mai loggati, mai restituiti.
-- URL esterni limitati a host noti (`ALLOWED_VENUE_HOSTS`) per ridurre superficie SSRF.
+- URL esterni: Kraken e Coinbase usano URL base costanti nel codice; l'unico override configurabile (Bybit) è validato contro una allowlist HTTPS. La costante `ALLOWED_VENUE_HOSTS` in `config.ts` **non è ancora applicata** a tutti gli adapter: fino al merge della PR dedicata la allowlist globale è una dichiarazione, non un controllo attivo. Vedi `docs/GM_MASTER_EXECUTION_PLAN.md` §3 (P0-2).
 - Nessuna seed phrase raccolta; il form wallet rifiuta input multi-parola e il form API key rifiuta valori sospetti.
 
 ### Debito tecnico dichiarato
