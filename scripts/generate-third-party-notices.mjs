@@ -29,7 +29,7 @@ for (const [lockPathName, metadata] of Object.entries(lock.packages ?? {})) {
   }
   const pkg = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
   const files = fs.readdirSync(packageDir, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && /^(license|licence|copying|notice)(\\.|$)/i.test(entry.name))
+    .filter((entry) => entry.isFile() && /^(license|licence|copying|notice)([-_.]|$)/i.test(entry.name))
     .map((entry) => entry.name)
     .sort((a, b) => a.localeCompare(b));
 
