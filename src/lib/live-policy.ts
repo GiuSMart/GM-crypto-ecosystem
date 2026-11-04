@@ -29,7 +29,7 @@ export type LiveRiskSnapshot = {
   finalOwnerApproval: boolean;
   routerImplemented: boolean;
   apiCredentialValid: boolean;
-  apiPermission: "read-only" | "trade-only" | "trade-and-withdraw" | "unknown";
+  apiPermission: "read-only" | "full-trading" | "unknown";
   withdrawalsEnabled: boolean;
   authorizationMaxOrderQuote: number;
   authorizationMaxDailyLossQuote: number;
@@ -71,8 +71,8 @@ export function evaluateControlledLiveOrder(
   if (!snapshot.finalOwnerApproval) reasons.push("Autorizzazione finale del proprietario mancante.");
   if (!snapshot.routerImplemented) reasons.push("Order router non implementato/verificato.");
   if (!snapshot.apiCredentialValid) reasons.push("Credenziale Revolut X non verificata.");
-  if (snapshot.apiPermission !== "trade-only" || snapshot.withdrawalsEnabled) {
-    reasons.push("La credenziale deve consentire solo il trading e non i prelievi.");
+  if (snapshot.apiPermission !== "full-trading" || snapshot.withdrawalsEnabled) {
+    reasons.push("La credenziale deve avere accesso full-trading; il progetto non deve esporre operazioni di prelievo.");
   }
   if (snapshot.killSwitchActive) reasons.push("Emergency Stop attivo.");
   if (!snapshot.balanceFresh) reasons.push("Saldo/account non aggiornato.");
