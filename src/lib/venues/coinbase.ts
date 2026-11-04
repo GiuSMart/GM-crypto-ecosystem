@@ -2,8 +2,9 @@ import { ASSETS, QUOTES } from "../config";
 import { throttled } from "../rate-limit";
 import type { Book } from "../engine/arbitrage";
 import { toLevels, type Ticker, type VenueAdapter } from "./types";
+import { assertAllowedVenueBase } from "./hosts";
 
-const BASE = "https://api.exchange.coinbase.com";
+const BASE = assertAllowedVenueBase("https://api.exchange.coinbase.com").origin;
 const UA = "GM-Crypto-Arbitrage-AI/0.1 (+research prototype; public market data only)";
 
 /** Public REST: 10 req/s per IP with bursts to 15 (docs.cdp.coinbase.com). 120ms spacing is safe. */
@@ -14,6 +15,8 @@ async function cbGet<T>(path: string): Promise<T> {
     const res = await fetch(`${BASE}${path}`, {
       headers: { "User-Agent": UA, Accept: "application/json" },
       cache: "no-store",
+      // Refuse redirects: a 3xx could move a "public Coinbase" call to another host.
+      redirect: "error",
       signal: AbortSignal.timeout(9000),
     });
     if (!res.ok) throw new Error(`Coinbase HTTP ${res.status} su ${path}`);
