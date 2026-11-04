@@ -6,6 +6,8 @@ Turn GM Crypto Ecosystem into a disciplined, cost-aware AI-assisted crypto marke
 
 This document is an implementation brief, not a claim that an agent runtime already exists.
 
+**Owner-selected configuration:** strict zero-spend operation. See [GM AI Collective Free-Only Runtime Specification](./GM_AI_COLLECTIVE_FREE_ONLY.md) for provider eligibility, quota enforcement, privacy classification and implementation acceptance criteria.
+
 ## Current baseline
 
 - Application: Next.js 16 App Router, React 19, TypeScript.
