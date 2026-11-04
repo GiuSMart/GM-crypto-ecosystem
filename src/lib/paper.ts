@@ -79,6 +79,12 @@ export async function openPaperTrade(userId: string, opportunityId: string, ip: 
       "SELECT realized_profit, closed_at FROM paper_trades WHERE user_id = ? AND status = 'closed' AND closed_at IS NOT NULL ORDER BY closed_at ASC",
       userId,
     );
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const recentOrders = one<{ count: number }>(
+      "SELECT COUNT(*) AS count FROM paper_trades WHERE user_id = ? AND opened_at >= ?",
+      userId,
+      oneHourAgo,
+    );
     const riskVerdict = evaluatePaperRisk({
       settings,
       evaluation,
@@ -86,6 +92,7 @@ export async function openPaperTrade(userId: string, opportunityId: string, ip: 
       sellFeeConfidence: sellFee.confidence,
       openPositions,
       closedPositions,
+      ordersLastHour: recentOrders?.count ?? 0,
     });
 
     if (!riskVerdict.approved) {
