@@ -115,3 +115,20 @@ Ogni installazione ha: proprio database, proprio `master.key`, proprio dominio, 
 `npm run worker` avvia `scripts/worker.ts` solo se `GM_WORKER_ENABLED=true`. Il processo esegue scansioni globali con dati pubblici, una alla volta, attende l'intervallo dopo il completamento e registra log strutturati. `GM_WORKER_INTERVAL_MS` è limitato tra 30 secondi e 1 ora (default 60 secondi). Arresto ordinato su `SIGINT`/`SIGTERM`.
 
 Il worker è un processo separato ma usa lo stesso SQLite dell'app: `GM_DB_PATH` o `GM_DATA_DIR` devono puntare a un volume persistente condiviso correttamente tra web e worker sullo stesso host. Avviare una sola replica: non è ancora presente un lock distribuito/lease per impedire scansioni concorrenti tra più istanze. SQLite WAL non va collocato su storage di rete non compatibile. Serverless o filesystem effimeri non sono supportati per questo worker. Non include scheduler dell'hosting, push, alert in background o supervisione esterna; l'effettiva disponibilità 24/7 dipende da deploy, volume persistente e process manager.
+
+## AI Collective (Stage C) — FREE_ONLY
+
+Il runtime AI è un secondo livello, separato dal motore di arbitraggio: non legge book, non calcola fee e non tocca `live.ts`. Il budget è **EUR 0,00** per costruzione, non per configurazione.
+
+```
+policy.ts      → gate hard: budget 0, dati SECRET/CONFIDENTIAL, limiti di task
+registry.ts    → solo provider APPROVED_FREE, costo 0, evidenza fresca, health, classe dati
+gateway.ts     → selezione, timeout, redazione, audit; nessun fallback a pagamento
+store.ts       → ai_providers / ai_quota / ai_audit su node:sqlite, claim atomico
+providers/     → openrouter.ts, unica variante :free approvata
+runtime.ts     → composizione server-side, inerte senza opt-in esplicito
+```
+
+Tabelle additive (`CREATE ... IF NOT EXISTS`) applicate da `getDb()`: nessuna tabella esistente viene modificata. La quota vive nel database e sopravvive al riavvio; il consumo avviene in `BEGIN IMMEDIATE`, quindi due processi sullo stesso file non possono superare il limite.
+
+L'AI non ha accesso a credenziali exchange, wallet, paper trading o ordini: un test strutturale verifica che `src/lib/ai/**` non importi quei moduli e che l'unico modulo con accesso di rete sia l'adapter del provider. Dettagli e stato reale in [GM_AI_STAGE_C.md](GM_AI_STAGE_C.md).

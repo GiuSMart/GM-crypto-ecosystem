@@ -7,7 +7,7 @@
  * never escalates to a paid route — it parks the task instead.
  */
 import { clampTaskLimits, isZeroCostProvider, taskPolicyViolations } from "./policy";
-import type { QuotaLedger } from "./quota";
+import type { QuotaPort } from "./quota";
 import { selectCandidates } from "./registry";
 import type {
   AdapterRequest,
@@ -22,24 +22,15 @@ import type {
   TaskRequest,
 } from "./types";
 
-const REDACTIONS: readonly (readonly [RegExp, string])[] = [
-  [/sk-[A-Za-z0-9_-]{8,}/g, "[redacted-key]"],
-  [/hf_[A-Za-z0-9]{8,}/g, "[redacted-key]"],
-  [/AIza[0-9A-Za-z_-]{20,}/g, "[redacted-key]"],
-  [/Bearer\s+[A-Za-z0-9._-]{8,}/gi, "Bearer [redacted]"],
-];
+import { redact } from "./redact";
 
-/** Strip anything that looks like a credential before it reaches a log sink. */
-export function redact(text: string): string {
-  let out = text;
-  for (const [pattern, replacement] of REDACTIONS) out = out.replace(pattern, replacement);
-  return out;
-}
+/** Re-exported so audit sinks and adapters share one redaction list. */
+export { redact };
 
 export type GatewayDeps = {
   registry: readonly ProviderRecord[];
   adapters: Record<string, ProviderAdapter | undefined>;
-  ledger: QuotaLedger;
+  ledger: QuotaPort;
   audit?: AuditSink;
   now?: () => number;
 };
@@ -109,7 +100,12 @@ export async function runTask(task: TaskRequest, prompt: string, deps: GatewayDe
     emit({ action: "provider.skipped", providerId: item.providerId, modelId: item.modelId, code: item.code });
   }
 
+  // With no candidates at all, report the reason that actually blocked the task
+  // rather than a generic refusal.
   let lastCode: FailureCode = "MODEL_NOT_APPROVED";
+  if (candidates.length === 0 && skipped.length > 0) {
+    lastCode = skipped.find((item) => item.code === "PRIVACY_BLOCKED")?.code ?? skipped[0].code;
+  }
   let attempted = 0;
 
   for (const provider of candidates) {

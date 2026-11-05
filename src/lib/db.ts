@@ -1,4 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
+import { AI_SCHEMA_SQL } from "./ai/store-schema";
 import { SCHEMA_SQL } from "./schema";
 import { DEFAULT_SETTINGS, PLANS, REFERRALS, type EngineSettings } from "./config";
 import { hashPassword, newId, randomToken } from "./crypto";
@@ -126,6 +127,9 @@ export function getDb(): DatabaseSync {
   if (globalForDb.__gmDb) return globalForDb.__gmDb;
   const db = new DatabaseSync(dbFile());
   db.exec(SCHEMA_SQL);
+  // Additive AI Collective tables (ai_providers, ai_quota, ai_audit). Every
+  // statement is CREATE ... IF NOT EXISTS, so this is a no-op on later boots.
+  db.exec(AI_SCHEMA_SQL);
   seed(db);
   globalForDb.__gmDb = db;
   return db;

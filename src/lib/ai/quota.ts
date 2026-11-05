@@ -10,10 +10,22 @@ import type { FailureCode, ProviderRecord } from "./types";
 
 export const DAILY_WINDOW_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * The gateway depends on this port, not on a concrete ledger, so the same code
+ * runs against the in-memory ledger in tests and the SQLite ledger in production.
+ */
+export interface QuotaPort {
+  remaining(provider: ProviderRecord): number;
+  used(provider: ProviderRecord): number;
+  blockedBy(provider: ProviderRecord): FailureCode | null;
+  consume(provider: ProviderRecord): boolean;
+  disable(provider: ProviderRecord, code: FailureCode, ms?: number): void;
+}
+
 type Entry = { count: number; windowStart: number };
 type Disabled = { until: number; code: FailureCode };
 
-export class QuotaLedger {
+export class QuotaLedger implements QuotaPort {
   private readonly now: () => number;
   private readonly windowMs: number;
   private readonly entries = new Map<string, Entry>();
