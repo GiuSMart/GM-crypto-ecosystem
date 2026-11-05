@@ -1,0 +1,8 @@
+# Licence and compliance controls.
+# Changes here can silently approve new dependency obligations, so they require
+# an explicit review by the rights holder instead of an automated update.
+/LICENSE                                  @GiuSMart
+/licenses/                                @GiuSMart
+/scripts/check-licenses.mjs               @GiuSMart
+/scripts/generate-third-party-notices.mjs @GiuSMart
+/scripts/generate-sbom.mjs                @GiuSMart

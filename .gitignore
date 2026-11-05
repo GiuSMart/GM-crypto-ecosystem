@@ -13,6 +13,10 @@ data/
 .env.*
 !.env.example
 
+# Generated compliance artifacts (licence report, third-party notices, SBOM).
+# Rebuild on demand with: npm run licenses:report | licenses:notices | licenses:sbom
+artifacts/
+
 .DS_Store
 *.tsbuildinfo
 next-env.d.ts
