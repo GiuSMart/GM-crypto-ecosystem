@@ -140,6 +140,15 @@ function migrate(db: DatabaseSync) {
     db.prepare("UPDATE referrals SET category = ''").run();
   }
 
+  // Paper trades stored their result without recording which formula produced
+  // it. The ALTER default classifies every existing row as legacy, which is
+  // accurate: they were closed before the transfer fee stopped being charged
+  // twice. Their numbers are never recomputed or rewritten.
+  const paperColumns = db.prepare("PRAGMA table_info(paper_trades)").all() as unknown as { name: string }[];
+  if (!paperColumns.some((c) => c.name === "pnl_formula_version")) {
+    db.exec("ALTER TABLE paper_trades ADD COLUMN pnl_formula_version INTEGER NOT NULL DEFAULT 1");
+  }
+
   // Rows saved before categories existed, plus any row with an empty label, get
   // the seeded category when their id is known, otherwise the fallback bucket.
   // The WHERE clause makes this idempotent: a category an admin already chose is never overwritten.

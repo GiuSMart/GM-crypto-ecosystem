@@ -58,3 +58,113 @@ export function comparePaperExpectedToRealized(
     realizationPct: expectedTotal > 0 ? (realizedTotal / expectedTotal) * 100 : null,
   };
 }
+
+/* -------------------------------------------------------------------------- */
+/* P&L formula versioning                                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The formula currently used to close a paper trade: the withdrawal fee is
+ * already removed from the entry quantity, so it is charged exactly once.
+ */
+export const PAPER_PNL_FORMULA_VERSION = 2 as const;
+
+/**
+ * Trades closed before that correction charged the same withdrawal fee twice on
+ * exit. Their stored results are kept untouched and are never mixed with the
+ * comparable ones: a result produced by a different formula is a different
+ * measurement, not an older data point of the same series.
+ */
+export const LEGACY_PAPER_PNL_FORMULA_VERSION = 1 as const;
+
+export type PaperPnlVersion = typeof PAPER_PNL_FORMULA_VERSION | "legacy";
+
+export type PaperPnlGroup = {
+  formulaVersion: PaperPnlVersion;
+  closedCount: number;
+  expectedTotal: number;
+  realizedTotal: number;
+  delta: number;
+  realizationPct: number | null;
+  wins: number;
+  losses: number;
+  winRate: number | null;
+  avgRealizedMarginPct: number | null;
+  profitFactor: number | null;
+  averageWin: number | null;
+  averageLoss: number | null;
+  bestTrade: number | null;
+  worstTrade: number | null;
+};
+
+export type PaperPnlInput = {
+  status: string;
+  formulaVersion: number | null;
+  expectedProfit: number;
+  realizedProfit: number;
+  realizedMarginPct: number | null;
+};
+
+export type PaperPnlSummary = {
+  comparable: PaperPnlGroup;
+  legacy: PaperPnlGroup;
+  /** Closed rows dropped from every aggregate because their result is not a finite number. */
+  unknownResultCount: number;
+};
+
+/**
+ * Fail closed: only the current version is official. A missing, legacy or
+ * unrecognised version is historical data, never part of the comparable total.
+ */
+export function classifyPaperPnlVersion(version: number | null): PaperPnlVersion {
+  return version === PAPER_PNL_FORMULA_VERSION ? PAPER_PNL_FORMULA_VERSION : "legacy";
+}
+
+const averageOf = (values: number[]): number | null =>
+  values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+
+/** Aggregate one already-selected set of closed trades. Nothing is recomputed. */
+function summarizeGroup(rows: PaperPnlInput[], formulaVersion: PaperPnlVersion): PaperPnlGroup {
+  const comparison = comparePaperExpectedToRealized(
+    rows.map((row) => ({ expectedProfit: row.expectedProfit, realizedProfit: row.realizedProfit })),
+  );
+  const performance = calculatePaperPerformance(rows.map((row) => row.realizedProfit));
+  const margins = rows
+    .map((row) => row.realizedMarginPct)
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+
+  return {
+    formulaVersion,
+    closedCount: rows.length,
+    expectedTotal: comparison.expectedTotal,
+    realizedTotal: comparison.realizedTotal,
+    delta: comparison.delta,
+    realizationPct: comparison.realizationPct,
+    ...performance,
+    avgRealizedMarginPct: averageOf(margins),
+  };
+}
+
+/**
+ * Split closed trades by the formula that produced their result.
+ * Open trades belong to no group: a trade opened under the old formula joins
+ * the comparable set only once it is closed with the current one.
+ */
+export function summarizePaperPnl(rows: PaperPnlInput[]): PaperPnlSummary {
+  const closed = rows.filter((row) => row.status === "closed");
+  const known = closed.filter((row) => Number.isFinite(row.realizedProfit));
+  const unknownResultCount = closed.length - known.length;
+
+  const comparable: PaperPnlInput[] = [];
+  const legacy: PaperPnlInput[] = [];
+  for (const row of known) {
+    if (classifyPaperPnlVersion(row.formulaVersion) === PAPER_PNL_FORMULA_VERSION) comparable.push(row);
+    else legacy.push(row);
+  }
+
+  return {
+    comparable: summarizeGroup(comparable, PAPER_PNL_FORMULA_VERSION),
+    legacy: summarizeGroup(legacy, "legacy"),
+    unknownResultCount,
+  };
+}

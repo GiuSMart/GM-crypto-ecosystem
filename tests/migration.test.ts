@@ -198,3 +198,155 @@ test("a fresh database is created with the full referral catalogue", () => {
     assert.equal(row.active, 1);
   }
 });
+
+/* -------------------------------------------------------------------------- */
+/* Paper trades written before the P&L formula was recorded                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The paper_trades table as it shipped before column versioning, minus the
+ * foreign key: the fixture runs before users are seeded, and the point of this
+ * table is the missing column, not the constraint graph.
+ */
+const LEGACY_PAPER_SQL = `
+CREATE TABLE paper_trades (
+  id              TEXT PRIMARY KEY,
+  user_id         TEXT NOT NULL,
+  opportunity_id  TEXT,
+  pair            TEXT NOT NULL,
+  buy_venue       TEXT NOT NULL,
+  sell_venue      TEXT NOT NULL,
+  notional        REAL NOT NULL,
+  qty             REAL NOT NULL,
+  buy_vwap        REAL NOT NULL,
+  sell_vwap       REAL NOT NULL,
+  fee_buy         REAL NOT NULL,
+  fee_sell        REAL NOT NULL,
+  other_costs     REAL NOT NULL DEFAULT 0,
+  expected_profit REAL NOT NULL,
+  expected_margin_pct REAL NOT NULL,
+  status          TEXT NOT NULL DEFAULT 'open',
+  opened_at       TEXT NOT NULL,
+  closed_at       TEXT,
+  exit_buy        REAL,
+  exit_sell       REAL,
+  realized_profit REAL,
+  realized_margin_pct REAL,
+  note            TEXT
+);
+`;
+
+/** Insert a trade, optionally declaring the formula that produced its result. */
+function insertPaperRow(db: Db, id: string, realized: number | null, version?: number) {
+  const columns = [
+    "id", "user_id", "pair", "buy_venue", "sell_venue", "notional", "qty", "buy_vwap", "sell_vwap",
+    "fee_buy", "fee_sell", "expected_profit", "expected_margin_pct", "status", "opened_at", "closed_at",
+    "realized_profit", "realized_margin_pct",
+  ];
+  const values: (string | number | null)[] = [
+    id, "usr_admin", "BTC/EUR", "kraken", "coinbase", 500, 0.0071, 70_000, 70_050,
+    1.1, 1.4, 12.5, 2.5, realized === null ? "open" : "closed", "2026-01-01T10:00:00.000Z",
+    realized === null ? null : "2026-01-02T10:00:00.000Z", realized, realized === null ? null : 2.5,
+  ];
+  if (version !== undefined) {
+    columns.push("pnl_formula_version");
+    values.push(version);
+  }
+  db.prepare(`INSERT INTO paper_trades(${columns.join(", ")}) VALUES(${columns.map(() => "?").join(",")})`).run(...values);
+}
+
+const paperColumnsOf = (db: Db) =>
+  (db.prepare("PRAGMA table_info(paper_trades)").all() as unknown as { name: string }[]).map((c) => c.name);
+
+const paperRow = (db: Db, id: string) =>
+  db.prepare("SELECT status, realized_profit, pnl_formula_version FROM paper_trades WHERE id = ?").get(id) as
+    | { status: string; realized_profit: number | null; pnl_formula_version: number }
+    | undefined;
+
+function writeLegacyPaperDb(file: string) {
+  const legacy = new DatabaseSync(file);
+  legacy.exec(LEGACY_PAPER_SQL);
+  // Results produced by the formula that charged the withdrawal fee twice.
+  insertPaperRow(legacy, "pt_legacy_closed", -12.5);
+  insertPaperRow(legacy, "pt_legacy_win", 3.25);
+  insertPaperRow(legacy, "pt_legacy_open", null);
+  legacy.close();
+}
+
+test("an older database gains pnl_formula_version and keeps its results untouched", () => {
+  const file = path.join(runtimeDir, "legacy-paper.db");
+  writeLegacyPaperDb(file);
+
+  const db = reopen(file);
+
+  assert.ok(paperColumnsOf(db).includes("pnl_formula_version"), "la migrazione deve aggiungere la colonna pnl_formula_version");
+  assert.equal(
+    paperColumnsOf(db).filter((c) => c === "pnl_formula_version").length,
+    1,
+    "la colonna non deve essere aggiunta due volte",
+  );
+
+  // Every pre-existing row is historical by definition, and its number is the
+  // one that was stored: the migration classifies, it never recomputes.
+  const lost = paperRow(db, "pt_legacy_closed");
+  assert.equal(lost?.pnl_formula_version, 1);
+  assert.equal(lost?.realized_profit, -12.5);
+  assert.equal(lost?.status, "closed");
+  assert.equal(paperRow(db, "pt_legacy_win")?.realized_profit, 3.25);
+  assert.equal(paperRow(db, "pt_legacy_open")?.realized_profit, null, "una posizione aperta non deve ricevere un risultato");
+  assert.equal(paperRow(db, "pt_legacy_open")?.pnl_formula_version, 1);
+
+  // The migration is idempotent: reopening changes nothing.
+  const again = reopen(file);
+  assert.equal(paperColumnsOf(again).filter((c) => c === "pnl_formula_version").length, 1);
+  assert.equal(paperRow(again, "pt_legacy_closed")?.realized_profit, -12.5);
+  assert.equal(paperRow(again, "pt_legacy_closed")?.pnl_formula_version, 1);
+});
+
+test("a new trade records the current formula, and the default stays legacy", () => {
+  const db = getDb();
+
+  insertPaperRow(db, "pt_v2", 7.5, 2);
+  assert.equal(paperRow(db, "pt_v2")?.pnl_formula_version, 2);
+  assert.equal(paperRow(db, "pt_v2")?.realized_profit, 7.5);
+
+  // A write that does not name a version cannot silently claim the current one.
+  insertPaperRow(db, "pt_unspecified", 1.5);
+  assert.equal(paperRow(db, "pt_unspecified")?.pnl_formula_version, 1);
+});
+
+test("paperStats keeps the two series apart on a real database", async () => {
+  const file = path.join(runtimeDir, "stats-split.db");
+  const db = reopen(file);
+  insertPaperRow(db, "pt_split_v2_win", 10, 2);
+  insertPaperRow(db, "pt_split_v2_loss", -4, 2);
+  insertPaperRow(db, "pt_split_legacy", -30, 1);
+
+  const { paperStats } = await import("../src/lib/paper");
+  const stats = paperStats("usr_admin");
+
+  assert.equal(stats.comparable.closedCount, 2);
+  assert.equal(stats.comparable.realizedTotal, 6, "il totale ufficiale deve sommare solo le chiusure V2");
+  assert.equal(stats.comparable.wins, 1);
+  assert.equal(stats.comparable.losses, 1);
+  assert.equal(stats.legacy.closedCount, 1);
+  assert.equal(stats.legacy.realizedTotal, -30);
+  assert.equal(stats.closedCount, 3, "il conteggio totale resta disponibile, i totali restano separati");
+  assert.equal(stats.openCount, 0);
+  assert.equal(stats.unknownResultCount, 0);
+});
+
+test("a fresh database stores the P&L formula version with a legacy default", () => {
+  const file = path.join(runtimeDir, "fresh-paper.db");
+  const db = reopen(file);
+
+  const columns = db.prepare("PRAGMA table_info(paper_trades)").all() as unknown as {
+    name: string;
+    notnull: number;
+    dflt_value: string | null;
+  }[];
+  const version = columns.find((c) => c.name === "pnl_formula_version");
+  assert.ok(version, "la colonna deve esistere anche su un database nuovo");
+  assert.equal(version.notnull, 1);
+  assert.equal(version.dflt_value, "1");
+});

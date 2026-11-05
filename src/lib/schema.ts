@@ -158,6 +158,7 @@ CREATE TABLE IF NOT EXISTS paper_trades (
   exit_sell       REAL,
   realized_profit REAL,
   realized_margin_pct REAL,
+  pnl_formula_version INTEGER NOT NULL DEFAULT 1,  -- P&L formula used at close; 2 = current, 1 = legacy
   note            TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_paper_user ON paper_trades(user_id, opened_at DESC);

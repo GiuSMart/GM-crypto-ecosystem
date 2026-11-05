@@ -2,7 +2,7 @@ import { newId } from "./crypto";
 import { all, getUserSettings, one, run } from "./db";
 import { evaluateOpportunity, walkBids } from "./engine/arbitrage";
 import { calculatePaperRealizedProfit } from "./engine/paper";
-import { calculatePaperPerformance, comparePaperExpectedToRealized } from "./engine/paper-analytics";
+import { PAPER_PNL_FORMULA_VERSION, summarizePaperPnl, type PaperPnlGroup } from "./engine/paper-analytics";
 import { resolveFee } from "./engine/fees";
 import { audit } from "./audit";
 import { buildCostModel, getBook, opportunityById } from "./market";
@@ -30,6 +30,7 @@ export type PaperTradeRow = {
   exit_sell: number | null;
   realized_profit: number | null;
   realized_margin_pct: number | null;
+  pnl_formula_version: number;
   note: string | null;
 };
 
@@ -74,8 +75,8 @@ export async function openPaperTrade(userId: string, opportunityId: string, ip: 
     const transferCost = Number.isFinite(evaluation.transferCost) ? evaluation.transferCost : 0;
     run(
       `INSERT INTO paper_trades(id, user_id, opportunity_id, pair, buy_venue, sell_venue, notional, qty, buy_vwap, sell_vwap,
-        fee_buy, fee_sell, other_costs, expected_profit, expected_margin_pct, status, opened_at, note)
-       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'open',?,?)`,
+        fee_buy, fee_sell, other_costs, expected_profit, expected_margin_pct, status, opened_at, pnl_formula_version, note)
+       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'open',?,?,?)`,
       id,
       userId,
       opportunityId,
@@ -92,6 +93,9 @@ export async function openPaperTrade(userId: string, opportunityId: string, ip: 
       round(evaluation.netProfit),
       round(evaluation.marginPct, 6),
       new Date().toISOString(),
+      // Stamped at open so the row always declares the formula family it was
+      // created under; a close under the current formula promotes it to v2.
+      PAPER_PNL_FORMULA_VERSION,
       `Paper trade — margine atteso ${evaluation.marginPct.toFixed(3)}%`,
     );
     audit(userId, "paper.open", id, { pair: evaluation.pair, notional: evaluation.notionalQuote }, ip);
@@ -136,13 +140,17 @@ export async function closePaperTrade(userId: string, tradeId: string, ip: strin
     const realizedMargin = entrySpend > 0 ? (realized / entrySpend) * 100 : 0;
 
     run(
-      `UPDATE paper_trades SET status = 'closed', closed_at = ?, exit_buy = ?, exit_sell = ?, realized_profit = ?, realized_margin_pct = ?
+      `UPDATE paper_trades SET status = 'closed', closed_at = ?, exit_buy = ?, exit_sell = ?, realized_profit = ?, realized_margin_pct = ?,
+         pnl_formula_version = ?
        WHERE id = ? AND user_id = ?`,
       new Date().toISOString(),
       trade.buy_vwap,
       round(exit.avgPrice),
       round(realized),
       round(realizedMargin, 6),
+      // The stored result is now produced by the current formula, whatever the
+      // trade was stamped with at open, so it joins the comparable series.
+      PAPER_PNL_FORMULA_VERSION,
       tradeId,
       userId,
     );
@@ -157,46 +165,40 @@ export function listPaperTrades(userId: string, limit = 100): PaperTradeRow[] {
   return all<PaperTradeRow>("SELECT * FROM paper_trades WHERE user_id = ? ORDER BY opened_at DESC LIMIT ?", userId, limit);
 }
 
+/**
+ * Paper statistics split by the formula that produced each result.
+ * `comparable` is the official series; `legacy` stays visible for transparency
+ * and is never added to it. A figure that mixes the two would be arithmetically
+ * valid and financially meaningless.
+ */
 export type PaperStats = {
   openCount: number;
-  closedCount: number;
-  expectedTotal: number;
-  expectedClosedTotal: number;
-  realizedTotal: number;
-  realizedDelta: number;
-  realizationPct: number | null;
-  wins: number;
-  losses: number;
-  winRate: number | null;
-  avgRealizedMarginPct: number | null;
   openExpectedTotal: number;
-  profitFactor: number | null;
-  averageWin: number | null;
-  averageLoss: number | null;
-  bestTrade: number | null;
-  worstTrade: number | null;
+  closedCount: number;
+  comparable: PaperPnlGroup;
+  legacy: PaperPnlGroup;
+  unknownResultCount: number;
 };
 
 export function paperStats(userId: string): PaperStats {
   const rows = all<PaperTradeRow>("SELECT * FROM paper_trades WHERE user_id = ?", userId);
   const open = rows.filter((r) => r.status === "open");
-  const closed = rows.filter((r) => r.status === "closed");
-  const comparison = comparePaperExpectedToRealized(
-    closed.map((r) => ({ expectedProfit: r.expected_profit, realizedProfit: r.realized_profit ?? Number.NaN })),
+  const summary = summarizePaperPnl(
+    rows.map((r) => ({
+      status: r.status,
+      // A row whose version cannot be read is historical, never official.
+      formulaVersion: r.pnl_formula_version ?? null,
+      expectedProfit: r.expected_profit,
+      realizedProfit: r.realized_profit ?? Number.NaN,
+      realizedMarginPct: r.realized_margin_pct,
+    })),
   );
-  const performance = calculatePaperPerformance(closed.map((r) => r.realized_profit ?? 0));
   return {
     openCount: open.length,
-    closedCount: closed.length,
-    expectedTotal: open.reduce((s, r) => s + r.expected_profit, 0),
-    expectedClosedTotal: comparison.expectedTotal,
-    realizedTotal: comparison.realizedTotal,
-    realizedDelta: comparison.delta,
-    realizationPct: comparison.realizationPct,
-    ...performance,
-    avgRealizedMarginPct: closed.length
-      ? closed.reduce((s, r) => s + (r.realized_margin_pct ?? 0), 0) / closed.length
-      : null,
     openExpectedTotal: open.reduce((s, r) => s + r.expected_profit, 0),
+    closedCount: summary.comparable.closedCount + summary.legacy.closedCount,
+    comparable: summary.comparable,
+    legacy: summary.legacy,
+    unknownResultCount: summary.unknownResultCount,
   };
 }

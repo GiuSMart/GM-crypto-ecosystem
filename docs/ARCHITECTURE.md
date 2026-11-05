@@ -55,7 +55,7 @@ Le API pubbliche (Kraken/Coinbase) sono le stesse raggiungibili da Python; il mo
 | `pairs` | cache coppie (opzionale, oggi risolta a runtime) | globale |
 | `opportunities` | valutazioni del motore (`user_id NULL`) | fatto di mercato condiviso |
 | `scan_runs` | esecuzioni del motore | globale |
-| `paper_trades` | simulazioni | per utente |
+| `paper_trades` | simulazioni | per utente; `pnl_formula_version` dichiara la formula del risultato |
 | `referrals`, `plans`, `subscriptions` | catalogo commerciale | piani globali, sottoscrizioni per utente |
 | `live_authorizations` | doppio consenso live | per utente + admin |
 | `audit_log` | registro attività | per utente, visibile tutto all'admin |
@@ -65,11 +65,14 @@ Le opportunità sono **osservazioni di mercato condivise** (una scansione vale p
 ## Motore: modello di costo
 
 ```
+qty         = base acquistata − fee di rete (in modalità transfer)
 buySpend    = VWAP_ask(notional) × qty + fee_taker_buy
 sellProceeds= VWAP_bid(qty) − fee_taker_sell
-net         = sellProceeds − buffer − transferFee − buySpend
+net         = sellProceeds − buffer − buySpend
 margin%     = net / buySpend × 100
 ```
+
+La fee di trasferimento entra **una volta sola**, riducendo la quantità venduta: sottrarla anche come `transferFee` in quote la addebiterebbe due volte. Con fee di rete ignota il `net` vale `NaN` e il segnale è bloccato: mai zero al posto di un costo sconosciuto.
 
 Controlli bloccanti: book freschi entro `maxDataAgeMs`, riempimento completo su entrambe le gambe, slippage entro `maxSlippagePct`, fee di rete nota se `transferMode = transfer`, `net > 0`, `margin ≥ minMarginPct`.
 
@@ -90,6 +93,23 @@ Due livelli, entrambi su `node:test` senza dipendenze aggiuntive:
 - `npm run test:e2e` — test end-to-end contro un vero `next start` (richiede `npm run build` prima). Avviano il server su una porta libera con `GM_DB_PATH` e `GM_DATA_DIR` temporanei e verificano l'Affiliate Center via HTTP con una sessione reale: raggruppamento per categoria, ordine per `sort` e nome, offerte spente escluse, id univoci, corrispondenza tra pagina e pannello amministrativo, database nuovo e database migrato da una versione precedente. Non fanno parte di `npm test` perché l'avvio del server costa qualche secondo.
 
 Le migrazioni sono testate su un database costruito con lo schema precedente, non su un database già aggiornato: è l'unico modo per accorgersi che un `ALTER TABLE` con `DEFAULT` materializza il valore su tutte le righe esistenti e rende inutile il backfill che cerca celle vuote.
+
+## Contabilità paper: versioni della formula P&L
+
+Ogni chiusura registra in `paper_trades.pnl_formula_version` la formula che ha prodotto il risultato.
+
+| Versione | Formula | Stato |
+| --- | --- | --- |
+| `1` | addebitava la fee di trasferimento anche in uscita, dopo averla già tolta dalla quantità | storica, esclusa dai totali |
+| `2` | fee di trasferimento contata una sola volta | ufficiale, comparabile |
+
+Regole:
+
+- Le nuove aperture vengono marcate `2`; una posizione aperta con la formula precedente passa a `2` solo quando viene chiusa con il calcolo corrente.
+- `paperStats()` restituisce `comparable` (solo `2`) e `legacy` (tutto il resto, comprese versioni assenti o non riconosciute) come gruppi distinti. Nessuna statistica somma i due: un risultato prodotto da un'altra formula è una misura diversa, non un punto più vecchio della stessa serie.
+- I valori V1 restano immutati: costi aggregati e prezzi arrotondati non permettono di ricostruire l'importo che la formula corrente avrebbe prodotto, quindi non esiste alcuna correzione retroattiva.
+- Una chiusura il cui risultato non è un numero finito viene esclusa da ogni aggregato e conteggiata in `unknownResultCount`, non trattata come zero.
+- L'export CSV include `pnl_formula_version`, così la classificazione resta disponibile anche fuori dall'app.
 
 ## Sicurezza
 

@@ -185,15 +185,20 @@ export function analyse(s: Snapshot): Insight[] {
   insights.push({
     id: "paper",
     title: "Paper trading",
-    tone: s.paper.realizedTotal > 0 ? "positive" : s.paper.realizedTotal < 0 ? "critical" : "neutral",
-    body: s.paper.closedCount
-      ? `Su ${s.paper.closedCount} operazioni chiuse il risultato simulato è ${money(s.paper.realizedTotal)} con win rate ${num(s.paper.winRate ?? 0, 1)}%.`
+    tone: s.paper.comparable.realizedTotal > 0 ? "positive" : s.paper.comparable.realizedTotal < 0 ? "critical" : "neutral",
+    body: s.paper.comparable.closedCount
+      ? `Su ${s.paper.comparable.closedCount} operazioni chiuse con la formula corrente (V2) il risultato simulato è ${money(s.paper.comparable.realizedTotal)} con win rate ${num(s.paper.comparable.winRate ?? 0, 1)}%.${
+          s.paper.legacy.closedCount
+            ? ` ${s.paper.legacy.closedCount} chiusure storiche (V1, ${money(s.paper.legacy.realizedTotal)}) sono escluse dal totale perché calcolate con la formula precedente.`
+            : ""
+        }`
       : "Nessuna operazione chiusa. Apri un paper trade da un segnale eseguibile per confrontare profitto atteso e realizzato.",
     facts: [
       { label: "Aperte", value: String(s.paper.openCount) },
-      { label: "Chiuse", value: String(s.paper.closedCount) },
-      { label: "Atteso su aperte", value: money(s.paper.expectedTotal) },
-      { label: "Realizzato", value: money(s.paper.realizedTotal) },
+      { label: "Chiuse V2", value: String(s.paper.comparable.closedCount) },
+      { label: "Chiuse V1 escluse", value: String(s.paper.legacy.closedCount) },
+      { label: "Atteso su aperte", value: money(s.paper.openExpectedTotal) },
+      { label: "Realizzato V2", value: money(s.paper.comparable.realizedTotal) },
     ],
   });
 
@@ -256,8 +261,8 @@ const INTENTS: { id: string; test: RegExp; build: (s: Snapshot) => string }[] = 
     id: "paper",
     test: /paper|simul|backtest|risultat/i,
     build: (s) =>
-      `Paper trading: ${s.paper.openCount} aperte, ${s.paper.closedCount} chiuse, realizzato ${money(s.paper.realizedTotal)}, atteso sulle aperte ${money(s.paper.expectedTotal)}${
-        s.paper.winRate !== null ? `, win rate ${num(s.paper.winRate, 1)}%` : ""
+      `Paper trading: ${s.paper.openCount} aperte, ${s.paper.comparable.closedCount} chiuse V2 con realizzato ufficiale ${money(s.paper.comparable.realizedTotal)}, ${s.paper.legacy.closedCount} chiusure V1 escluse dai totali, atteso sulle aperte ${money(s.paper.openExpectedTotal)}${
+        s.paper.comparable.winRate !== null ? `, win rate V2 ${num(s.paper.comparable.winRate, 1)}%` : ""
       }.`,
   },
   {

@@ -5,6 +5,7 @@ import { Badge, Callout, Card, CardHead, Empty, Stat, cn } from "@/components/ui
 import { requireUser } from "@/lib/auth";
 import { dt, money, num, pct } from "@/lib/format";
 import { listPaperTrades, paperStats } from "@/lib/paper";
+import { PAPER_PNL_FORMULA_VERSION } from "@/lib/engine/paper-analytics";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,9 @@ export default async function PaperPage() {
   const user = await requireUser();
   const trades = listPaperTrades(user.id, 200);
   const stats = paperStats(user.id);
+  const official = stats.comparable;
+  const legacy = stats.legacy;
+  const hasLegacy = legacy.closedCount > 0;
   const open = trades.filter((t) => t.status === "open");
   const closed = trades.filter((t) => t.status === "closed");
 
@@ -23,7 +27,8 @@ export default async function PaperPage() {
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-paper">Paper trading</h1>
           <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted">
             Simulazione a capitale zero. Ogni operazione viene aperta solo se il segnale è eseguibile con i dati correnti, poi viene chiusa marcando la gamba di
-            vendita al bid ladder live: così il risultato simulato include fee, slippage e buffer reali, non stime.
+            vendita al bid ladder live: così il risultato simulato include fee, slippage e buffer reali, non stime. Le statistiche ufficiali usano solo i risultati
+            prodotti dalla formula corrente (V2): quelli calcolati con la formula precedente restano consultabili separatamente e non entrano mai nei totali.
           </p>
         </div>
         <Link href="/opportunities" className="gm-btn text-xs">
@@ -32,35 +37,68 @@ export default async function PaperPage() {
       </header>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat label="Operazioni aperte" value={stats.openCount} sub={`atteso ${money(stats.expectedTotal)}`} />
-        <Stat label="Operazioni chiuse" value={stats.closedCount} sub={`${stats.wins} vincenti / ${stats.losses} perdenti`} />
+        <Stat label="Operazioni aperte" value={stats.openCount} sub={`atteso ${money(stats.openExpectedTotal)}`} />
+        <Stat label="Operazioni chiuse (V2)" value={official.closedCount} sub={`${official.wins} vincenti / ${official.losses} perdenti`} />
         <Stat
-          label="Realizzato simulato"
-          value={money(stats.realizedTotal)}
-          tone={stats.realizedTotal > 0 ? "pos" : stats.realizedTotal < 0 ? "neg" : "neutral"}
-          sub="netto dopo tutti i costi"
+          label="Realizzato simulato (V2)"
+          value={money(official.realizedTotal)}
+          tone={official.realizedTotal > 0 ? "pos" : official.realizedTotal < 0 ? "neg" : "neutral"}
+          sub="netto dopo tutti i costi · serie ufficiale"
         />
-        <Stat label="Win rate" value={stats.winRate === null ? "—" : `${num(stats.winRate, 1)}%`} tone={stats.winRate && stats.winRate > 50 ? "pos" : "neutral"} sub={`margine medio ${stats.avgRealizedMarginPct === null ? "—" : pct(stats.avgRealizedMarginPct)}`} />
+        <Stat
+          label="Win rate (V2)"
+          value={official.winRate === null ? "—" : `${num(official.winRate, 1)}%`}
+          tone={official.winRate && official.winRate > 50 ? "pos" : "neutral"}
+          sub={`margine medio ${official.avgRealizedMarginPct === null ? "—" : pct(official.avgRealizedMarginPct)}`}
+        />
       </div>
 
       <section className="space-y-2">
-        <div className="text-[11px] uppercase tracking-[0.16em] text-muted">Qualità delle simulazioni chiuse</div>
+        <div className="text-[11px] uppercase tracking-[0.16em] text-muted">Qualità delle simulazioni chiuse · serie ufficiale V2</div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <Stat
             label="Profit factor"
-            value={stats.profitFactor === null ? (stats.wins > 0 ? "∞" : "—") : num(stats.profitFactor, 2)}
+            value={official.profitFactor === null ? (official.wins > 0 ? "∞" : "—") : num(official.profitFactor, 2)}
             sub="profitti lordi / perdite lorde"
-            tone={stats.profitFactor !== null && stats.profitFactor >= 1 ? "pos" : "neutral"}
+            tone={official.profitFactor !== null && official.profitFactor >= 1 ? "pos" : "neutral"}
           />
-          <Stat label="Vincita media" value={stats.averageWin === null ? "—" : money(stats.averageWin)} tone="pos" sub="solo trade positivi" />
-          <Stat label="Perdita media" value={stats.averageLoss === null ? "—" : money(stats.averageLoss)} tone="neg" sub="solo trade negativi" />
-          <Stat label="Miglior trade" value={stats.bestTrade === null ? "—" : money(stats.bestTrade)} tone={stats.bestTrade !== null && stats.bestTrade > 0 ? "pos" : "neutral"} sub="risultato netto" />
-          <Stat label="Peggior trade" value={stats.worstTrade === null ? "—" : money(stats.worstTrade)} tone={stats.worstTrade !== null && stats.worstTrade < 0 ? "neg" : "neutral"} sub="risultato netto" />
+          <Stat label="Vincita media" value={official.averageWin === null ? "—" : money(official.averageWin)} tone="pos" sub="solo trade positivi" />
+          <Stat label="Perdita media" value={official.averageLoss === null ? "—" : money(official.averageLoss)} tone="neg" sub="solo trade negativi" />
+          <Stat label="Miglior trade" value={official.bestTrade === null ? "—" : money(official.bestTrade)} tone={official.bestTrade !== null && official.bestTrade > 0 ? "pos" : "neutral"} sub="risultato netto" />
+          <Stat label="Peggior trade" value={official.worstTrade === null ? "—" : money(official.worstTrade)} tone={official.worstTrade !== null && official.worstTrade < 0 ? "neg" : "neutral"} sub="risultato netto" />
         </div>
         <p className="text-[10px] leading-relaxed text-muted">
-          Il profit factor confronta la somma dei risultati positivi con il valore assoluto delle perdite. Se non esistono perdite, viene mostrato ∞ quando ci sono vincite.
+          Il profit factor confronta la somma dei risultati positivi con il valore assoluto delle perdite. Se non esistono perdite, viene mostrato ∞ quando ci sono vincite. Ogni valore qui
+          deriva solo da chiusure V2.
         </p>
       </section>
+
+      {hasLegacy || stats.unknownResultCount > 0 ? (
+        <Card className="overflow-hidden">
+          <CardHead
+            title="Storico precedente (V1)"
+            subtitle="Risultati conservati, esclusi dai totali ufficiali"
+            icon={<Icon name="history" size={17} />}
+            action={<Badge tone="warn">Non comparabile</Badge>}
+          />
+          <div className="grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-4">
+            <Stat label="Operazioni V1" value={legacy.closedCount} sub="chiuse con la formula precedente" />
+            <Stat label="Realizzato V1" value={money(legacy.realizedTotal)} tone="neutral" sub="mostrato, mai sommato al V2" />
+            <Stat label="Win rate V1" value={legacy.winRate === null ? "—" : `${num(legacy.winRate, 1)}%`} sub="serie storica" />
+            <Stat
+              label="Esclusi dal totale"
+              value={legacy.closedCount + stats.unknownResultCount}
+              sub={stats.unknownResultCount ? `${stats.unknownResultCount} senza esito leggibile` : "solo formula precedente"}
+            />
+          </div>
+          <div className="p-3 pt-0">
+            <Callout tone="warn" title="Perché non vengono corretti né sommati">
+              Queste chiusure addebitavano due volte la fee di trasferimento: il loro risultato è più basso di quanto la formula corrente avrebbe prodotto. I costi originali sono
+              aggregati e i prezzi arrotondati, quindi non è possibile ricostruire il valore corretto senza inventarlo: i numeri restano quelli salvati, marcati come storici.
+            </Callout>
+          </div>
+        </Card>
+      ) : null}
 
       <Card className="overflow-hidden">
         <CardHead title="Posizioni aperte" subtitle="La chiusura marca l'uscita al mercato corrente" icon={<Icon name="layers" size={17} />} action={<Badge tone="gold">{open.length}</Badge>} />
@@ -110,7 +148,7 @@ export default async function PaperPage() {
       </Card>
 
       <Card className="overflow-hidden">
-        <CardHead title="Storico simulazioni" subtitle="Previsto contro realizzato" icon={<Icon name="history" size={17} />} />
+        <CardHead title="Storico simulazioni" subtitle="Previsto contro realizzato · serie separata per formula" icon={<Icon name="history" size={17} />} />
         {closed.length ? (
           <div className="gm-scroll-x">
             <table className="gm-table">
@@ -118,6 +156,7 @@ export default async function PaperPage() {
                 <tr>
                   <th>Coppia</th>
                   <th>Direzione</th>
+                  <th>Formula</th>
                   <th className="text-right">Atteso</th>
                   <th className="text-right">Realizzato</th>
                   <th className="text-right">Margine</th>
@@ -131,6 +170,13 @@ export default async function PaperPage() {
                     <td className="font-medium text-paper">{t.pair}</td>
                     <td className="text-[11px] text-muted">
                       {t.buy_venue} → {t.sell_venue}
+                    </td>
+                    <td>
+                      {t.pnl_formula_version === PAPER_PNL_FORMULA_VERSION ? (
+                        <Badge tone="pos" title="Risultato prodotto dalla formula corrente: entra nei totali ufficiali">V2</Badge>
+                      ) : (
+                        <Badge tone="warn" title="Formula precedente: risultato conservato ma escluso dai totali ufficiali">V1</Badge>
+                      )}
                     </td>
                     <td className="num text-right text-muted">{money(t.expected_profit)}</td>
                     <td className={cn("num text-right font-semibold", (t.realized_profit ?? 0) > 0 ? "text-pos" : "text-neg")}>{money(t.realized_profit)}</td>

@@ -30,10 +30,12 @@ export async function GET(req: Request) {
   let rows: (string | number)[][];
 
   if (kind === "paper") {
-    header = ["id", "pair", "buy_venue", "sell_venue", "notional", "qty", "buy_vwap", "sell_vwap", "expected_profit", "expected_margin_pct", "status", "realized_profit", "realized_margin_pct", "opened_at", "closed_at"];
+    // pnl_formula_version travels with the data: a result computed by a
+    // different formula must stay classifiable outside this app too.
+    header = ["id", "pair", "buy_venue", "sell_venue", "notional", "qty", "buy_vwap", "sell_vwap", "expected_profit", "expected_margin_pct", "status", "realized_profit", "realized_margin_pct", "pnl_formula_version", "opened_at", "closed_at"];
     rows = listPaperTrades(user.id, 1000).map((t) => [
       t.id, t.pair, t.buy_venue, t.sell_venue, t.notional, t.qty, t.buy_vwap, t.sell_vwap,
-      t.expected_profit, t.expected_margin_pct, t.status, t.realized_profit ?? "", t.realized_margin_pct ?? "", t.opened_at, t.closed_at ?? "",
+      t.expected_profit, t.expected_margin_pct, t.status, t.realized_profit ?? "", t.realized_margin_pct ?? "", t.pnl_formula_version, t.opened_at, t.closed_at ?? "",
     ]);
   } else {
     header = ["ts", "pair", "buy_venue", "sell_venue", "notional", "gross_spread_pct", "fee_buy", "fee_sell", "buffer_cost", "transfer_cost", "net_profit", "margin_pct", "executable", "reject_reason"];

@@ -37,6 +37,8 @@ export default async function OverviewPage() {
   const payload = bestSignal ? parsePayload(bestSignal) : {};
   const executableCount = opportunities.filter((o) => o.executable === 1).length;
   const paper = paperStats(user.id);
+  const paperOfficial = paper.comparable;
+  const paperLegacyExcluded = paper.legacy.closedCount + paper.unknownResultCount;
   const series = marginSeries(30);
   const signalSince = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const signalObservations = all<SignalObservation>(
@@ -115,22 +117,22 @@ export default async function OverviewPage() {
           tone={topBoard && topBoard.grossSpreadPct > feeFloor ? "pos" : "neg"}
         />
         <Stat
-          label="Paper trading realizzato"
-          value={money(paper.realizedTotal)}
-          tone={paper.realizedTotal > 0 ? "pos" : paper.realizedTotal < 0 ? "neg" : "neutral"}
-          sub={`${paper.closedCount} chiuse · ${paper.openCount} aperte`}
+          label="Paper trading realizzato (V2)"
+          value={money(paperOfficial.realizedTotal)}
+          tone={paperOfficial.realizedTotal > 0 ? "pos" : paperOfficial.realizedTotal < 0 ? "neg" : "neutral"}
+          sub={`${paperOfficial.closedCount} chiuse · ${paper.openCount} aperte${paperLegacyExcluded ? ` · ${paperLegacyExcluded} escluse` : ""}`}
         />
         <Stat
-          label="Profitto previsto (chiuse)"
-          value={money(paper.expectedClosedTotal)}
+          label="Profitto previsto (chiuse V2)"
+          value={money(paperOfficial.expectedTotal)}
           sub="stima registrata all'apertura"
           tone="neutral"
         />
         <Stat
           label="Scostamento dal previsto"
-          value={money(paper.realizedDelta)}
-          tone={paper.realizedDelta > 0 ? "pos" : paper.realizedDelta < 0 ? "neg" : "neutral"}
-          sub={paper.realizationPct === null ? "rapporto non calcolabile" : `${num(paper.realizationPct, 1)}% del previsto`}
+          value={money(paperOfficial.delta)}
+          tone={paperOfficial.delta > 0 ? "pos" : paperOfficial.delta < 0 ? "neg" : "neutral"}
+          sub={paperOfficial.realizationPct === null ? "rapporto non calcolabile" : `${num(paperOfficial.realizationPct, 1)}% del previsto`}
         />
       </div>
 
