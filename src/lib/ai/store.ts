@@ -310,6 +310,34 @@ export class AiStore {
   }
 
   /**
+   * Read-only view of a shared window, used by the admin panel. It never claims
+   * a slot: reading the panel does not consume the operator's daily budget.
+   */
+  windowUsage(
+    key: string,
+    windowMs: number,
+  ): { used: number; limit: number; windowStartMs: number; windowMs: number } {
+    this.migrate();
+    const fallbackWindow = Math.max(1, Math.floor(windowMs));
+    const now = this.now();
+    const row = this.db
+      .prepare("SELECT window_start_ms, window_ms, used, limit_per_window FROM ai_gate WHERE gate_key = ?")
+      .get(key) as unknown as
+      | { window_start_ms: number; window_ms: number; used: number; limit_per_window: number }
+      | undefined;
+    if (!row) return { used: 0, limit: 0, windowStartMs: now, windowMs: fallbackWindow };
+    if (now - row.window_start_ms >= row.window_ms) {
+      return { used: 0, limit: row.limit_per_window, windowStartMs: now, windowMs: row.window_ms };
+    }
+    return {
+      used: row.used,
+      limit: row.limit_per_window,
+      windowStartMs: row.window_start_ms,
+      windowMs: row.window_ms,
+    };
+  }
+
+  /**
    * Claim one slot in a shared rolling window, for example requests per minute.
    * The claim is atomic under BEGIN IMMEDIATE, so two processes sharing the file
    * cannot both take the last slot of the window.

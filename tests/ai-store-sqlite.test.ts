@@ -49,6 +49,28 @@ test("store: the AI migration is additive and idempotent", () => {
   cleanup(file);
 });
 
+test("store: window usage can be read without consuming a slot", () => {
+  let clock = 1_700_000_000_000;
+  const file = tempDbFile();
+  const store = AiStore.open(file, { now: () => clock });
+
+  assert.equal(store.windowUsage("ai:user:usr_admin", DAY_MS).used, 0);
+  assert.equal(store.claimWindow("ai:user:usr_admin", 20, DAY_MS), true);
+  assert.equal(store.claimWindow("ai:user:usr_admin", 20, DAY_MS), true);
+
+  const usage = store.windowUsage("ai:user:usr_admin", DAY_MS);
+  assert.equal(usage.used, 2);
+  assert.equal(usage.limit, 20);
+  // Reading the panel twice must not spend two more requests.
+  assert.equal(store.windowUsage("ai:user:usr_admin", DAY_MS).used, 2);
+
+  clock += DAY_MS + 1;
+  assert.equal(store.windowUsage("ai:user:usr_admin", DAY_MS).used, 0);
+
+  store.close();
+  cleanup(file);
+});
+
 test("store: a PUBLIC attestation is persisted, tied to user and task, and immutable", () => {
   const file = tempDbFile();
   const store = AiStore.open(file);

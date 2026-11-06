@@ -7,16 +7,21 @@ nessuna modifica a `main`. Dati verificati il 2026-11-06 sul repository remoto.
 
 | Elemento | Valore |
 |---|---|
-| Branch Stage C | `feature/ai-stage-c-route` (head: `git rev-parse` sul branch) |
+| Branch Stage C | `feature/ai-stage-c-route` |
+| HEAD verificato (hardening, prima del pannello admin) | `bcf28ba9edf150c74be8e31545d9847901fee6ad` |
 | Base dichiarata | `chore/agent-skills-freebuff-handoff`, head `336a832` (PR #21) |
-| Stato PR #21 | **aperta**, branch → `main`, 18 commit, non mergiata |
-| `main` | `6cd3033` |
-| Distanza `main...branch` | 21 commit avanti, 3 indietro |
+| Stato PR #21 | **aperta in bozza**, branch → `main`, non mergiata |
+| `main` | `6cd3033f9bc7098769c75ea1fb40d54fb442a880` |
+| Distanza `main...branch` | 23 commit avanti, 3 indietro (a `bcf28ba`; +1 con il pannello admin) |
+| PR Stage C | **nessuna aperta** |
+| Rebase eseguito | **no** |
 | Contenuto AI su `main` | assente: né `src/lib/ai/**` né i documenti Stage A/B/C |
 
 Conclusione: finché #21 è aperta, `main` non contiene la specifica free-only né
 `docs/ARCHITECTURE.md` aggiornato. Un rebase diretto su `main` duplicherebbe il
-lavoro di #21 e produrrebbe conflitti privi di significato.
+lavoro di #21 e produrrebbe conflitti privi di significato. Il pannello
+amministrativo `/admin/ai` è stato aggiunto sopra `bcf28ba`; il branch non è
+stato rebasato e non è stata aperta alcuna PR.
 
 ## 2. Sovrapposizioni misurate
 

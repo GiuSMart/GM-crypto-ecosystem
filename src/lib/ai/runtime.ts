@@ -29,6 +29,9 @@ export type AiRuntimeStatus = {
   reason: string;
   adapters: string[];
   budgetEur: 0;
+  /** Configured provider/model, or null while the adapter is off. Never the key. */
+  providerId: string | null;
+  modelId: string | null;
 };
 
 export type AiRuntime = {
@@ -61,6 +64,8 @@ export function createAiRuntime(
       reason: config.ok ? "OpenRouter attivo sulla sola variante :free approvata" : config.reason,
       adapters: Object.keys(adapters),
       budgetEur: 0,
+      providerId: config.ok ? approved.providerId : null,
+      modelId: config.ok ? config.config.modelId : null,
     },
     store,
     run: (task, prompt) =>

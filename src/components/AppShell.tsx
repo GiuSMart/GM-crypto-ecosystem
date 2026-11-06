@@ -57,6 +57,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
       { href: "/settings", label: "Impostazioni", icon: "settings" },
       { href: "/security", label: "Sicurezza", icon: "shield" },
       { href: "/admin", label: "Amministrazione", icon: "users", adminOnly: true },
+      { href: "/admin/ai", label: "AI Collective", icon: "brain", adminOnly: true },
     ],
   },
 ];
@@ -81,7 +82,8 @@ export default function AppShell({
     setOpen(false);
   }, [pathname]);
 
-  const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
+  const isActive = (href: string) =>
+    href === "/" || href === "/admin" ? pathname === href : pathname.startsWith(href);
 
   const logout = async () => {
     setBusy(true);

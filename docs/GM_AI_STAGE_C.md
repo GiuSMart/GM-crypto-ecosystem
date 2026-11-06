@@ -61,6 +61,7 @@ Consequences encoded in the adapter:
 | Verified seed records | `src/lib/ai/registry-seed.ts` | implemented, tested |
 | HTTP entry point | `src/app/api/ai/route.ts` | implemented, admin-only |
 | Request validation and status mapping | `src/lib/ai/http.ts` | implemented, tested |
+| Admin panel `/admin/ai` | `src/app/(app)/admin/ai/page.tsx`, `src/components/AiPanelForm.tsx`, `src/lib/ai/panel.ts` | implemented, admin-only, tested |
 
 ## HTTP entry point (admin-only)
 
@@ -104,7 +105,31 @@ contract lives in `src/lib/ai/http.ts`, which is pure and tested directly.
   server-only guard and is not imported by any Client Component.
 
 The route stays inert while `GM_AI_OPENROUTER` is not `true`: it answers 503 before
-any network call. It is not wired into any page yet, and it is not a public API.
+any network call. It is not a public API.
+
+## Admin panel (`/admin/ai`)
+
+`src/app/(app)/admin/ai/page.tsx` is a server component behind `requireAdmin()`:
+a customer session is redirected with `denied=admin` before any AI module or
+form renders. The page shows:
+
+- engine state (disabled / active / daily quota exhausted) and the reason;
+- FREE_ONLY and budget EUR 0.00, provider and pinned model;
+- this account's daily usage, read with the read-only `AiStore.windowUsage`
+  (opening the panel never consumes a request);
+- whether `GM_AI_SHARED_DB=true` is declared, with the SQLite warning;
+- the last 12 audit events as metadata only (action, provider, model, code); the
+  detail field is not displayed;
+- a callout stating that the collective cannot order, withdraw or touch wallets,
+  credentials or the deterministic engine.
+
+`src/components/AiPanelForm.tsx` is the only client piece. It sends exactly
+`objective`, `prompt` and `attestPublicData: true` to `POST /api/ai`, requires the
+PUBLIC checkbox on every request (it starts unchecked), displays fixed safe
+errors mapped by `panelResultFrom`, and never writes the prompt, the answer or
+the attestation to local storage, cookies, the URL or the console. It does not
+send anything on mount, on a timer or after a timeout: only the submit handler
+calls `fetch` once.
 
 ## What is mocked, not live
 
@@ -179,7 +204,7 @@ by a restart.
 |---|---|
 | `npm ci` | clean |
 | `npm run typecheck` | exit 0 |
-| `npm test` | 114/114 passed, AI tests included |
+| `npm test` | 121/121 passed, AI tests included |
 | `npm run build` | exit 0 |
 | `npm audit --omit=dev --audit-level=high` | 0 vulnerabilities |
 
@@ -190,8 +215,9 @@ multi-process claim concurrency, gateway + persisted ledger, privacy refusals,
 credential redaction, runtime opt-in, the production shared-database gate,
 mandatory PUBLIC attestation (missing, false, non-boolean) with persistence and
 immutability, HTTP body ceiling (declared, chunked, malformed, invalid UTF-8),
-and the financial boundary (no order, wallet, credential or withdrawal path,
-single networked module, live hard stop).
+admin panel access denial, safe error mapping, no auto-send and no client-side
+secret, and the financial boundary (no order, wallet, credential or withdrawal
+path, single networked module, live hard stop).
 
 ## Still open
 
