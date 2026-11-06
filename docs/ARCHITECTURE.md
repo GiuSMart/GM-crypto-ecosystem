@@ -131,4 +131,6 @@ runtime.ts     → composizione server-side, inerte senza opt-in esplicito
 
 Tabelle additive (`CREATE ... IF NOT EXISTS`) applicate da `getDb()`: nessuna tabella esistente viene modificata. La quota vive nel database e sopravvive al riavvio; il consumo avviene in `BEGIN IMMEDIATE`, quindi due processi sullo stesso file non possono superare il limite.
 
-L'AI non ha accesso a credenziali exchange, wallet, paper trading o ordini: un test strutturale verifica che `src/lib/ai/**` non importi quei moduli e che l'unico modulo con accesso di rete sia l'adapter del provider. Dettagli e stato reale in [GM_AI_STAGE_C.md](GM_AI_STAGE_C.md).
+L'AI non ha accesso a credenziali exchange, wallet, paper trading o ordini: un test strutturale verifica che `src/lib/ai/**` non importi quei moduli e che l'unico modulo con accesso di rete sia l'adapter del provider.
+
+L'unico ingresso è `POST /api/ai`, riservato all'amministratore: sessione httpOnly tramite `guardedMutation`, controllo same-origin, classificazione `PUBLIC` decisa dal server (un body che prova a impostare `dataClass`, budget o provider viene rifiutato), un tentativo per richiesta, 20 richieste/giorno per account e una finestra condivisa di 18 richieste/minuto per provider, atomica su SQLite (`ai_gate`) così più processi non possono ignorarla. La route risponde 503 finché l'opt-in non è esplicito. Dettagli e stato reale in [GM_AI_STAGE_C.md](GM_AI_STAGE_C.md).

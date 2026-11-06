@@ -6,7 +6,7 @@
  * classification, registry eligibility, quota, and bounded attempts. A failure
  * never escalates to a paid route — it parks the task instead.
  */
-import { clampTaskLimits, isZeroCostProvider, taskPolicyViolations } from "./policy";
+import { ROUTE_LIMITS, clampTaskLimits, isZeroCostProvider, taskPolicyViolations } from "./policy";
 import type { QuotaPort } from "./quota";
 import { selectCandidates } from "./registry";
 import type {
@@ -145,6 +145,24 @@ export async function runTask(task: TaskRequest, prompt: string, deps: GatewayDe
     if (!adapter) {
       lastCode = "PROVIDER_UNAVAILABLE";
       emit({ action: "provider.skipped", providerId: provider.providerId, modelId: provider.modelId, code: "PROVIDER_UNAVAILABLE" });
+      continue;
+    }
+
+    // Shared per-minute window, atomic in SQLite: a local in-process limiter
+    // cannot bound several instances that share the same provider key.
+    const minuteKey = `ai:minute:${provider.providerId}`;
+    const minuteAllowed = deps.ledger.claimWindow
+      ? deps.ledger.claimWindow(minuteKey, ROUTE_LIMITS.globalRequestsPerMinute, 60_000)
+      : true;
+    if (!minuteAllowed) {
+      lastCode = "RATE_LIMITED";
+      emit({
+        action: "provider.skipped",
+        providerId: provider.providerId,
+        modelId: provider.modelId,
+        code: "RATE_LIMITED",
+        detail: "limite condiviso di richieste al minuto raggiunto: nessun invio",
+      });
       continue;
     }
 

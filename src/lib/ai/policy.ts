@@ -29,6 +29,25 @@ export const TASK_LIMITS = {
 export const EVIDENCE_MAX_AGE_MS = 180 * 24 * 60 * 60 * 1000;
 
 /**
+ * Limits for the HTTP entry point. They are constants, not settings: a caller
+ * cannot raise them, and the server (never the browser) decides classification,
+ * budget and provider.
+ */
+export const ROUTE_LIMITS = {
+  /** One account's daily budget, below the provider's 50/day free quota. */
+  perUserPerDay: 20,
+  /** One attempt per HTTP request: a retry loop would drain the free quota. */
+  requestsPerTask: 1,
+  /** The approved record allows 16k input tokens; ~4 characters per token. */
+  maxPromptChars: 64_000,
+  maxObjectiveChars: 500,
+  /** Shared per-minute window, enforced in SQLite so every process obeys it. */
+  globalRequestsPerMinute: 18,
+  /** Per-user HTTP throttle, in-process first line of defence. */
+  userRequestsPerMinute: 6,
+} as const;
+
+/**
  * True only when the record can never cost money: no price per request, no
  * plan, no card, no silent upgrade. Anything unknown is false.
  */

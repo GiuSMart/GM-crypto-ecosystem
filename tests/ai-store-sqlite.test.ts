@@ -31,7 +31,8 @@ const withLimit = (limit: number): ProviderRecord => {
   return { ...base, limits: { ...base.limits, requestsPerDay: limit } };
 };
 
-const AUDIT_TABLES = ["ai_audit", "ai_providers", "ai_quota"];
+// ai_gate holds the shared rolling windows (per-minute limits); it is additive too.
+const AUDIT_TABLES = ["ai_audit", "ai_gate", "ai_providers", "ai_quota"];
 
 test("store: the AI migration is additive and idempotent", () => {
   const file = tempDbFile();

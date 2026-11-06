@@ -58,6 +58,38 @@ Consequences encoded in the adapter:
 | Persisted quota port | `src/lib/ai/quota-sqlite.ts` | implemented, tested |
 | Server-only composition | `src/lib/ai/runtime.ts` | implemented, tested |
 | Verified seed records | `src/lib/ai/registry-seed.ts` | implemented, tested |
+| HTTP entry point | `src/app/api/ai/route.ts` | implemented, admin-only |
+| Request validation and status mapping | `src/lib/ai/http.ts` | implemented, tested |
+
+## HTTP entry point (admin-only)
+
+`POST /api/ai` is the only way the collective is reachable. The route is thin; the
+contract lives in `src/lib/ai/http.ts`, which is pure and tested directly.
+
+- **Admin session required**, through the existing `guardedMutation`: httpOnly
+  cookie session, same-origin check and 6 requests/minute per user in process.
+- **Classification is server-side**: `parseAiRequest` always builds the task with
+  `dataClass: "PUBLIC"`. A body containing `dataClass`, `dataClassification`,
+  `requestedBudgetEur`, `budget`, `mode`, `provider`, `providerAllowlist`, `model`,
+  `modelId`, `messages`, `system`, `tools`, `maxRequests` or `timeoutMs` is rejected
+  with 400 — a client cannot even try to downgrade the policy.
+- **Budget**: one provider attempt per request, plus 20 requests/day per account
+  claimed atomically in SQLite. One account cannot drain the 50/day free quota.
+- **Shared minute window**: 18 requests/minute per provider, claimed through
+  `AiStore.claimWindow` in `ai_gate` under `BEGIN IMMEDIATE`, so several processes
+  cannot each allow 18. The first claim of a window fixes its limit; a later caller
+  cannot widen it. The adapter's in-memory limiter remains as defence in depth.
+- **Input ceiling**: prompt ≤ 64 000 characters (≈16k tokens, the approved record's
+  input limit); the adapter re-checks the estimate before sending.
+- **Output**: gateway codes map to 400/402/403/422/429/502/503/504 with a safe
+  message. Attempts expose provider, model, outcome, duration and usage only — never
+  provider detail, keys or stack traces. `Cache-Control: no-store`.
+- **Runtime**: `export const runtime = "nodejs"` and `dynamic = "force-dynamic"`;
+  no key or `process.env` read in the route itself; the runtime enforces an explicit
+  server-only guard and is not imported by any Client Component.
+
+The route stays inert while `GM_AI_OPENROUTER` is not `true`: it answers 503 before
+any network call. It is not wired into any page yet, and it is not a public API.
 
 ## What is mocked, not live
 

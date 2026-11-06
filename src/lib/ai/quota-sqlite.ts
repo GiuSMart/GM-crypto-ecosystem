@@ -31,4 +31,9 @@ export class SqliteQuotaLedger implements QuotaPort {
   disable(provider: ProviderRecord, code: FailureCode, ms?: number): void {
     this.store.disable(provider, code, ms);
   }
+
+  /** Atomic across processes: the claim runs in BEGIN IMMEDIATE. */
+  claimWindow(key: string, limit: number, windowMs: number): boolean {
+    return this.store.claimWindow(key, limit, windowMs);
+  }
 }

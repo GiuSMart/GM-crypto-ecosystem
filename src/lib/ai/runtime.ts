@@ -17,6 +17,13 @@ import { approvedOpenRouterRecord, pendingOpenRouterRouterRecord } from "./regis
 import { AiStore } from "./store";
 import type { GatewayResult, ProviderAdapter, TaskRequest } from "./types";
 
+// Explicit server-only boundary. Next.js fails the build if a Client Component
+// imports this module; outside the bundler (tests, scripts) the same rule is
+// enforced here, so the provider key can never be reached from a browser bundle.
+if (typeof window !== "undefined") {
+  throw new Error("src/lib/ai/runtime.ts è server-only: nessun componente client può importarlo.");
+}
+
 export type AiRuntimeStatus = {
   enabled: boolean;
   reason: string;

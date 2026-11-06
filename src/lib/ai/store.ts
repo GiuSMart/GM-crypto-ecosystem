@@ -302,6 +302,49 @@ export class AiStore {
     });
   }
 
+  /**
+   * Claim one slot in a shared rolling window, for example requests per minute.
+   * The claim is atomic under BEGIN IMMEDIATE, so two processes sharing the file
+   * cannot both take the last slot of the window.
+   */
+  claimWindow(key: string, limit: number, windowMs: number): boolean {
+    this.migrate();
+    if (typeof key !== "string" || key.trim() === "") return false;
+    const safeLimit = Math.floor(limit);
+    if (!Number.isFinite(safeLimit) || safeLimit <= 0) return false;
+    const safeWindow = Math.max(1, Math.floor(windowMs));
+    const now = this.now();
+
+    return this.transaction(() => {
+      const row = this.db
+        .prepare("SELECT window_start_ms, window_ms, used, limit_per_window FROM ai_gate WHERE gate_key = ?")
+        .get(key) as unknown as
+        | { window_start_ms: number; window_ms: number; used: number; limit_per_window: number }
+        | undefined;
+
+      const expired = !row || now - row.window_start_ms >= row.window_ms;
+      const windowStartMs = expired ? now : row.window_start_ms;
+      const used = expired ? 0 : row.used;
+      // The first claim of a window fixes its budget: a later caller cannot widen
+      // a limit that is already being consumed (nor narrow it mid-window).
+      const effectiveLimit = expired || !row ? safeLimit : row.limit_per_window;
+      if (used >= effectiveLimit) return false;
+
+      this.db
+        .prepare(
+          `INSERT INTO ai_gate(gate_key, window_start_ms, window_ms, used, limit_per_window)
+           VALUES(?,?,?,?,?)
+           ON CONFLICT(gate_key) DO UPDATE SET
+             window_start_ms = excluded.window_start_ms,
+             window_ms = excluded.window_ms,
+             used = excluded.used,
+             limit_per_window = excluded.limit_per_window`,
+        )
+        .run(key, windowStartMs, safeWindow, used + 1, effectiveLimit);
+      return true;
+    });
+  }
+
   /** Close a route until `ms` elapses (never longer than one window). */
   disable(provider: ProviderRecord, code: FailureCode, ms?: number): void {
     this.migrate();

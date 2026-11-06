@@ -61,6 +61,19 @@ CREATE TABLE IF NOT EXISTS ai_quota (
   CHECK (window_ms > 0)
 );
 
+-- Shared rolling windows (per-minute request limits). Kept separate from ai_quota
+-- so a global limit is never confused with a provider's daily quota.
+CREATE TABLE IF NOT EXISTS ai_gate (
+  gate_key         TEXT PRIMARY KEY,
+  window_start_ms  INTEGER NOT NULL,
+  window_ms        INTEGER NOT NULL,
+  used             INTEGER NOT NULL DEFAULT 0,
+  limit_per_window INTEGER NOT NULL,
+  CHECK (used >= 0),
+  CHECK (limit_per_window >= 0),
+  CHECK (window_ms > 0)
+);
+
 CREATE TABLE IF NOT EXISTS ai_audit (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   ts          TEXT NOT NULL,
