@@ -1,6 +1,6 @@
 import type { EngineSettings } from "../config";
 import type { Evaluation } from "./arbitrage";
-import { DEFAULT_RISK_POLICY, evaluateRisk, type RiskVerdict } from "./risk-guard";
+import { DEFAULT_RISK_POLICY, blockedVerdict, evaluateRisk, type RiskVerdict } from "./risk-guard";
 
 export type OpenPaperPosition = {
   notional: number;
@@ -34,6 +34,26 @@ export function evaluatePaperRisk(input: {
   now?: number;
 }): RiskVerdict {
   const { settings, evaluation, openPositions, closedPositions } = input;
+
+  // Persisted rows are untrusted input. Coercing a non-finite profit to zero used to
+  // make a corrupted position look like a flat one, so both are refused instead.
+  for (const row of openPositions) {
+    if (!Number.isFinite(row.notional) || row.notional < 0) {
+      return blockedVerdict(
+        "DATA_INCOMPLETE",
+        "Posizione paper con nozionale non valido: l'esposizione non è calcolabile, apertura bloccata.",
+      );
+    }
+  }
+  for (const row of closedPositions) {
+    if (row.realized_profit !== null && !Number.isFinite(row.realized_profit)) {
+      return blockedVerdict(
+        "DATA_INCOMPLETE",
+        "Posizione chiusa con profitto non finito: il P&L giornaliero e il drawdown non sono attendibili, apertura bloccata.",
+      );
+    }
+  }
+
   const policy = {
     ...DEFAULT_RISK_POLICY,
     maxOrderQuote: Math.min(DEFAULT_RISK_POLICY.maxOrderQuote, settings.maxOrderQuote),
@@ -58,14 +78,13 @@ export function evaluatePaperRisk(input: {
   utcDayStart.setUTCHours(0, 0, 0, 0);
   const dailyRealizedPnlQuote = closedPositions
     .filter((row) => row.closed_at !== null && row.closed_at >= utcDayStart.toISOString())
-    .reduce((sum, row) => sum + (Number.isFinite(row.realized_profit) ? row.realized_profit! : 0), 0);
+    .reduce((sum, row) => sum + (row.realized_profit ?? 0), 0);
 
   const paperBudget = policy.maxTotalExposureQuote;
   let equityQuote = paperBudget;
   let peakEquityQuote = paperBudget;
   for (const row of closedPositions) {
-    const pnl = Number.isFinite(row.realized_profit) ? row.realized_profit! : 0;
-    equityQuote += pnl;
+    equityQuote += row.realized_profit ?? 0;
     peakEquityQuote = Math.max(peakEquityQuote, equityQuote);
   }
 

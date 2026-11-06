@@ -217,6 +217,25 @@ export function validateRiskPolicy(policy: RiskPolicy): string[] {
 
 const finite = (value: unknown): boolean => typeof value === "number" && Number.isFinite(value);
 
+const SYSTEM_STATES = ["operational", "degraded", "halted"] as const;
+
+/**
+ * Exposures are nested numbers, so each entry is validated individually. A single
+ * negative or non-finite entry would offset the limit instead of consuming it
+ * (`after = current + notional` shrinks for a negative `current`).
+ */
+function exposureProblems(label: string, exposures: Record<string, number>): string[] {
+  if (exposures === null || typeof exposures !== "object" || Array.isArray(exposures)) {
+    return [`${label} deve essere una mappa di importi.`];
+  }
+  const problems: string[] = [];
+  for (const [key, value] of Object.entries(exposures)) {
+    if (!finite(value)) problems.push(`${label}["${key}"] non è un numero finito.`);
+    else if (value < 0) problems.push(`${label}["${key}"] non può essere negativo.`);
+  }
+  return problems;
+}
+
 /** Every numeric input must be a finite number: NaN can hide an unbounded limit. */
 function incompleteInputs(intent: TradeIntent, portfolio: PortfolioState): string[] {
   const problems: string[] = [];
@@ -234,6 +253,49 @@ function incompleteInputs(intent: TradeIntent, portfolio: PortfolioState): strin
   for (const [name, value] of required) {
     if (!finite(value)) problems.push(`${name} non è un numero finito.`);
   }
+
+  // A non-positive notional is the cheapest way past every monetary cap: a negative
+  // size lowers total and venue exposure instead of raising it, and stays under
+  // every "after" comparison. It is refused before any limit is evaluated.
+  if (finite(intent.notionalQuote) && intent.notionalQuote <= 0) {
+    problems.push("intent.notionalQuote deve essere maggiore di zero.");
+  }
+  if (finite(intent.expectedSlippagePct) && intent.expectedSlippagePct < 0) {
+    problems.push("intent.expectedSlippagePct non può essere negativo.");
+  }
+
+  // Without a positive equity peak the drawdown ratio is undefined. The previous
+  // version skipped the whole check in that case, silently removing one of the two
+  // loss limits, so an unusable peak now blocks instead of disabling the control.
+  if (finite(portfolio.peakEquityQuote) && portfolio.peakEquityQuote <= 0) {
+    problems.push(
+      "portfolio.peakEquityQuote deve essere maggiore di zero: senza un picco di equity il drawdown non è calcolabile.",
+    );
+  }
+  if (finite(portfolio.equityQuote) && portfolio.equityQuote < 0) {
+    problems.push("portfolio.equityQuote non può essere negativa.");
+  }
+  if (finite(portfolio.availableCapitalQuote) && portfolio.availableCapitalQuote < 0) {
+    problems.push("portfolio.availableCapitalQuote non può essere negativa.");
+  }
+  if (finite(portfolio.totalExposureQuote) && portfolio.totalExposureQuote < 0) {
+    problems.push("portfolio.totalExposureQuote non può essere negativa.");
+  }
+  if (finite(portfolio.ordersLastHour) && (!Number.isInteger(portfolio.ordersLastHour) || portfolio.ordersLastHour < 0)) {
+    problems.push("portfolio.ordersLastHour deve essere un intero non negativo.");
+  }
+
+  // The kill switches are validated, not merely read: an absent, misspelled or
+  // non-boolean state used to fall through to the permissive branch.
+  if (typeof portfolio.emergencyStop !== "boolean") {
+    problems.push("portfolio.emergencyStop deve essere esplicito (true/false).");
+  }
+  if (!SYSTEM_STATES.includes(portfolio.systemState)) {
+    problems.push(`portfolio.systemState deve essere uno tra ${SYSTEM_STATES.join(", ")}.`);
+  }
+
+  problems.push(...exposureProblems("portfolio.venueExposureQuote", portfolio.venueExposureQuote));
+  problems.push(...exposureProblems("portfolio.strategyExposureQuote", portfolio.strategyExposureQuote));
   if (typeof intent.pair !== "string" || intent.pair.length === 0) problems.push("intent.pair mancante.");
   if (typeof intent.buyVenue !== "string" || intent.buyVenue.length === 0) problems.push("intent.buyVenue mancante.");
   if (typeof intent.sellVenue !== "string" || intent.sellVenue.length === 0) problems.push("intent.sellVenue mancante.");
@@ -432,24 +494,24 @@ export function evaluateRisk(input: {
     });
   }
 
+  // `peakEquityQuote > 0` is guaranteed by incompleteInputs above, so the drawdown
+  // limit can never be skipped by an unusable peak.
   checks += 1;
-  if (portfolio.peakEquityQuote > 0) {
-    const drawdownPct = ((portfolio.peakEquityQuote - portfolio.equityQuote) / portfolio.peakEquityQuote) * 100;
-    if (drawdownPct >= policy.maxDrawdownPct) {
-      violations.push({
-        code: "DRAWDOWN_LIMIT",
-        message: `Drawdown ${drawdownPct.toFixed(2)}% ha raggiunto il limite ${policy.maxDrawdownPct}%.`,
-        limit: policy.maxDrawdownPct,
-        value: drawdownPct,
-      });
-    } else if (drawdownPct >= policy.maxDrawdownPct * 0.8) {
-      warnings.push({
-        code: "NEAR_DRAWDOWN_LIMIT",
-        message: `Drawdown ${drawdownPct.toFixed(2)}% all'80% o più del limite ${policy.maxDrawdownPct}%.`,
-        limit: policy.maxDrawdownPct,
-        value: drawdownPct,
-      });
-    }
+  const drawdownPct = ((portfolio.peakEquityQuote - portfolio.equityQuote) / portfolio.peakEquityQuote) * 100;
+  if (drawdownPct >= policy.maxDrawdownPct) {
+    violations.push({
+      code: "DRAWDOWN_LIMIT",
+      message: `Drawdown ${drawdownPct.toFixed(2)}% ha raggiunto il limite ${policy.maxDrawdownPct}%.`,
+      limit: policy.maxDrawdownPct,
+      value: drawdownPct,
+    });
+  } else if (drawdownPct >= policy.maxDrawdownPct * 0.8) {
+    warnings.push({
+      code: "NEAR_DRAWDOWN_LIMIT",
+      message: `Drawdown ${drawdownPct.toFixed(2)}% all'80% o più del limite ${policy.maxDrawdownPct}%.`,
+      limit: policy.maxDrawdownPct,
+      value: drawdownPct,
+    });
   }
 
   if (intent.notionalQuote > policy.maxOrderQuote * 0.9 && intent.notionalQuote <= policy.maxOrderQuote) {
@@ -510,6 +572,21 @@ export function evaluateRisk(input: {
     warnings,
     checksEvaluated: checks,
     policyRejected,
+  };
+}
+
+/**
+ * A blocking verdict for conditions the guard cannot observe itself, such as
+ * corrupted persisted rows. Callers must never coerce a bad value to zero first:
+ * an unknown P&L is not a flat P&L.
+ */
+export function blockedVerdict(code: RiskViolationCode, message: string): RiskVerdict {
+  return {
+    approved: false,
+    violations: [{ code, message }],
+    warnings: [],
+    checksEvaluated: 0,
+    policyRejected: false,
   };
 }
 
