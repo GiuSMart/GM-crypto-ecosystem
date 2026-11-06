@@ -32,7 +32,7 @@ const withLimit = (limit: number): ProviderRecord => {
 };
 
 // ai_gate holds the shared rolling windows (per-minute limits); it is additive too.
-const AUDIT_TABLES = ["ai_audit", "ai_gate", "ai_providers", "ai_quota"];
+const AUDIT_TABLES = ["ai_attestation", "ai_audit", "ai_gate", "ai_providers", "ai_quota"];
 
 test("store: the AI migration is additive and idempotent", () => {
   const file = tempDbFile();
@@ -46,6 +46,40 @@ test("store: the AI migration is additive and idempotent", () => {
   second.migrate();
   assert.deepEqual(second.tables(), AUDIT_TABLES);
   second.close();
+  cleanup(file);
+});
+
+test("store: a PUBLIC attestation is persisted, tied to user and task, and immutable", () => {
+  const file = tempDbFile();
+  const store = AiStore.open(file);
+  const attestation = {
+    taskId: "tsk_attested",
+    userId: "usr_admin",
+    statementVersion: "public-v1",
+    attestedAtMs: 1_700_000_000_000,
+  };
+
+  store.recordAttestation(attestation);
+  assert.deepEqual(store.attestationFor("tsk_attested"), attestation);
+  assert.equal(store.attestationFor("tsk_missing"), null);
+
+  // A replayed task id cannot rewrite who accepted responsibility.
+  assert.throws(
+    () => store.recordAttestation({ ...attestation, userId: "usr_other" }),
+    /UNIQUE|constraint/i,
+  );
+  assert.equal(store.attestationFor("tsk_attested")?.userId, "usr_admin");
+
+  assert.throws(
+    () => store.recordAttestation({ ...attestation, taskId: "tsk_b", statementVersion: "" }),
+    /versione/,
+  );
+  assert.throws(
+    () => store.recordAttestation({ ...attestation, taskId: "tsk_c", attestedAtMs: 1.5 }),
+    /timestamp/,
+  );
+
+  store.close();
   cleanup(file);
 });
 

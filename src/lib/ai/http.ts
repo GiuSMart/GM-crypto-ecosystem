@@ -7,9 +7,15 @@
  * 1. the client can never choose the data classification, the budget or the
  *    provider — those are server-side values and any attempt to set them is a
  *    rejected request, not a silently ignored field;
- * 2. no provider detail, key or internal error text reaches the response.
+ * 2. no provider detail, key or internal error text reaches the response;
+ * 3. the body is read with a hard byte ceiling before any JSON parsing, so an
+ *    enormous or unbounded stream cannot be buffered in memory;
+ * 4. the admin must attest, per request, that the text is PUBLIC. The forced
+ *    classification alone cannot prove that: copied financial or personal data
+ *    would still be PUBLIC on paper. The confirmation shifts responsibility to
+ *    the operator and is recorded; it is not a sensitive-data detector.
  */
-import { ROUTE_LIMITS } from "./policy";
+import { PUBLIC_ATTESTATION, ROUTE_LIMITS } from "./policy";
 import type { FailureCode, GatewayAttempt, GatewayResult, TaskRequest } from "./types";
 
 /** Fields a browser must never control. Presence is an error, not a no-op. */
@@ -32,7 +38,7 @@ const SERVER_OWNED_FIELDS = [
 ] as const;
 
 export type ParsedAiRequest =
-  | { ok: true; task: TaskRequest; prompt: string }
+  | { ok: true; task: TaskRequest; prompt: string; attestationVersion: string }
   | { ok: false; status: number; error: string };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -56,6 +62,17 @@ export function parseAiRequest(body: unknown, taskId: string): ParsedAiRequest {
       ok: false,
       status: 400,
       error: `Il client non può impostare: ${forbidden.join(", ")}. Classificazione, budget e provider sono decisi dal server.`,
+    };
+  }
+
+  // Explicit, boolean, per request: a missing or falsy value is a rejection, not
+  // a default. No text is ever sent without the operator taking responsibility.
+  if (body[PUBLIC_ATTESTATION.field] !== true) {
+    return {
+      ok: false,
+      status: 400,
+      error:
+        "Attestazione PUBLIC mancante: conferma che il testo è pubblico e non contiene dati INTERNAL, CONFIDENTIAL o SECRET, credenziali, chiavi o dati personali.",
     };
   }
 
@@ -96,7 +113,85 @@ export function parseAiRequest(body: unknown, taskId: string): ParsedAiRequest {
       dataClass: "PUBLIC",
       maxRequests: ROUTE_LIMITS.requestsPerTask,
     },
+    attestationVersion: PUBLIC_ATTESTATION.version,
   };
+}
+
+export type BodyRead =
+  | { ok: true; value: unknown }
+  | { ok: false; status: number; error: string };
+
+/**
+ * Read a JSON body with a hard ceiling. The declared Content-Length is checked
+ * first (a request that already declares too many bytes is refused without
+ * reading it), but it is never trusted on its own: the stream is read chunk by
+ * chunk and aborted as soon as it crosses the limit. A missing length is
+ * allowed — chunked uploads are legitimate — and still bounded. Malformed JSON
+ * and invalid UTF-8 are 400.
+ */
+export async function readJsonBody(
+  req: Request,
+  maxBytes: number = ROUTE_LIMITS.maxBodyBytes,
+): Promise<BodyRead> {
+  const declared = req.headers.get("content-length");
+  if (declared !== null) {
+    const trimmed = declared.trim();
+    if (!/^\d+$/.test(trimmed)) {
+      return { ok: false, status: 400, error: "Content-Length non valido." };
+    }
+    const length = Number(trimmed);
+    if (!Number.isSafeInteger(length)) {
+      return { ok: false, status: 400, error: "Content-Length non valido." };
+    }
+    if (length === 0) return { ok: false, status: 400, error: "Richiesta non valida." };
+    if (length > maxBytes) {
+      return { ok: false, status: 413, error: `Richiesta oltre il limite di ${maxBytes} byte.` };
+    }
+  }
+
+  const stream = req.body;
+  if (!stream) return { ok: false, status: 400, error: "Richiesta non valida." };
+
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        return { ok: false, status: 413, error: `Richiesta oltre il limite di ${maxBytes} byte.` };
+      }
+      chunks.push(value);
+    }
+  } catch {
+    return { ok: false, status: 400, error: "Corpo della richiesta non leggibile." };
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return { ok: false, status: 400, error: "Richiesta non valida." };
+  }
+
+  try {
+    return { ok: true, value: JSON.parse(text) as unknown };
+  } catch {
+    return { ok: false, status: 400, error: "Richiesta non valida." };
+  }
 }
 
 const FAILURE_RESPONSE: Record<FailureCode, { status: number; message: string }> = {

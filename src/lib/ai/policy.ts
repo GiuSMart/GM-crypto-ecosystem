@@ -29,6 +29,16 @@ export const TASK_LIMITS = {
 export const EVIDENCE_MAX_AGE_MS = 180 * 24 * 60 * 60 * 1000;
 
 /**
+ * The admin must confirm, for every request, that the text is PUBLIC. The
+ * classification is still forced server-side; this attestation is an explicit
+ * human responsibility, not an automatic detector of sensitive content.
+ */
+export const PUBLIC_ATTESTATION = {
+  field: "attestPublicData",
+  version: "public-v1",
+} as const;
+
+/**
  * Limits for the HTTP entry point. They are constants, not settings: a caller
  * cannot raise them, and the server (never the browser) decides classification,
  * budget and provider.
@@ -43,6 +53,12 @@ export const ROUTE_LIMITS = {
   maxObjectiveChars: 500,
   /** Shared per-minute window, enforced in SQLite so every process obeys it. */
   globalRequestsPerMinute: 18,
+  /**
+   * HTTP body ceiling, enforced before `JSON.parse` and before the stream is
+   * buffered. The prompt ceiling is 64k characters, so 512 KiB is generous for
+   * UTF-8 and still bound the memory a single request can claim.
+   */
+  maxBodyBytes: 512 * 1024,
   /** Per-user HTTP throttle, in-process first line of defence. */
   userRequestsPerMinute: 6,
 } as const;

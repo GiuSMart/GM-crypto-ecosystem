@@ -5,7 +5,8 @@
  * - only a pinned model id ending in `:free` is accepted;
  * - the request never carries a `models` fallback array (OpenRouter bills those);
  * - `allow_fallbacks: false` and a local per-minute limiter bound the traffic;
- * - every response is validated before its text is used.
+ * - every response must name exactly the approved model id: another `:free`
+ *   variant is still a different model and is rejected, with no fallback.
  *
  * Evidence for the approved record lives in ../registry-seed.ts and
  * docs/GM_AI_STAGE_C.md. This module is server-only: it is imported by no client
@@ -56,6 +57,20 @@ export function parseOpenRouterConfig(env: Record<string, string | undefined>): 
   const modelId = (env.GM_AI_OPENROUTER_MODEL ?? "").trim();
   if (!isFreeModelId(modelId)) {
     return { ok: false, reason: "GM_AI_OPENROUTER_MODEL deve essere una variante :free verificata" };
+  }
+
+  // The shared quota is a SQLite transaction: it is global only when every
+  // instance opens the same persistent file. On serverless or multi-host
+  // hosting each instance would get its own file and its own 18/minute and
+  // 20/day budget, so production needs an explicit statement that the database
+  // is shared. Without it the adapter stays off.
+  const production = (env.NODE_ENV ?? process.env.NODE_ENV ?? "").trim().toLowerCase() === "production";
+  if (production && (env.GM_AI_SHARED_DB ?? "").trim().toLowerCase() !== "true") {
+    return {
+      ok: false,
+      reason:
+        "in produzione serve GM_AI_SHARED_DB=true: un solo file SQLite persistente condiviso da tutte le istanze",
+    };
   }
 
   return { ok: true, config: { apiKey, modelId, maxOutputTokens: 4_096 } };
@@ -192,8 +207,11 @@ function parseCompletion(raw: string, modelId: string): AdapterResult {
     return fail("INVALID_RESPONSE", "JSON non valido");
   }
 
-  if (typeof payload.model === "string" && payload.model !== modelId && !payload.model.endsWith(":free")) {
-    return fail("INVALID_RESPONSE", "la risposta proviene da un modello diverso dalla variante :free approvata");
+  // Strict identity: a different id is a different model, even when it is also
+  // a free variant. Missing, paid or substituted models invalidate the response
+  // and can never produce a completion.
+  if (payload.model !== modelId) {
+    return fail("INVALID_RESPONSE", "la risposta non proviene dal modello approvato: nessun fallback accettato");
   }
 
   const choices = Array.isArray(payload.choices) ? payload.choices : [];

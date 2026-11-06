@@ -74,6 +74,21 @@ CREATE TABLE IF NOT EXISTS ai_gate (
   CHECK (window_ms > 0)
 );
 
+-- Operator attestation that the prompt is PUBLIC. One row per task, written
+-- before the provider call and kept even when the call fails: it records who
+-- accepted responsibility for the content, without storing the content itself.
+CREATE TABLE IF NOT EXISTS ai_attestation (
+  task_id           TEXT PRIMARY KEY,
+  user_id           TEXT NOT NULL,
+  statement_version TEXT NOT NULL,
+  attested_at_ms    INTEGER NOT NULL,
+  CHECK (length(task_id) > 0),
+  CHECK (length(user_id) > 0),
+  CHECK (length(statement_version) > 0),
+  CHECK (attested_at_ms > 0)
+);
+CREATE INDEX IF NOT EXISTS idx_ai_attestation_user ON ai_attestation(user_id, attested_at_ms DESC);
+
 CREATE TABLE IF NOT EXISTS ai_audit (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   ts          TEXT NOT NULL,

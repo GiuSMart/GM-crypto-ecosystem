@@ -151,6 +151,36 @@ test("adapter: maps authentication, missing model and server failures to typed e
   }
 });
 
+test("adapter: a completion must name exactly the approved model, with no fallback", async () => {
+  const cases: { label: string; body: Record<string, unknown> }[] = [
+    { label: "approved", body: { model: MODEL, choices: [{ message: { content: "ok" } }] } },
+    { label: "altra variante free", body: { model: "some/other-model:free", choices: [{ message: { content: "ok" } }] } },
+    { label: "modello a pagamento", body: { model: "openai/gpt-5", choices: [{ message: { content: "ok" } }] } },
+    { label: "campo model assente", body: { choices: [{ message: { content: "ok" } }] } },
+  ];
+
+  const approved = await harness(() => json(cases[0].body)).run();
+  assert.equal(approved.ok, true);
+
+  for (const item of cases.slice(1)) {
+    const result = await harness(() => json(item.body)).run();
+    assert.equal(result.ok, false, item.label);
+    if (result.ok) continue;
+    assert.equal(result.code, "INVALID_RESPONSE", item.label);
+  }
+});
+
+test("adapter: production requires an explicitly shared SQLite database", () => {
+  const base = {
+    GM_AI_OPENROUTER: "true",
+    OPENROUTER_API_KEY: API_KEY,
+    GM_AI_OPENROUTER_MODEL: MODEL,
+    NODE_ENV: "production",
+  };
+  assert.equal(parseOpenRouterConfig(base).ok, false, "senza GM_AI_SHARED_DB il limite non è globale");
+  assert.equal(parseOpenRouterConfig({ ...base, GM_AI_SHARED_DB: "true" }).ok, true);
+});
+
 test("adapter: rejects invalid JSON, empty choices and a substituted model", async () => {
   const invalidJson = await harness(() => new Response("not-json", { status: 200 })).run();
   assert.equal(invalidJson.ok, false);

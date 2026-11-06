@@ -1,10 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseAiRequest, toAiResponse } from "../src/lib/ai/http";
-import { ROUTE_LIMITS } from "../src/lib/ai/policy";
+import { parseAiRequest, readJsonBody, toAiResponse } from "../src/lib/ai/http";
+import { PUBLIC_ATTESTATION, ROUTE_LIMITS } from "../src/lib/ai/policy";
 import type { FailureCode, GatewayResult } from "../src/lib/ai/types";
 
-const VALID = { objective: "Riassumi il testo", prompt: "Testo pubblico di prova" };
+const VALID = {
+  attestPublicData: true,
+  objective: "Riassumi il testo",
+  prompt: "Testo pubblico di prova",
+};
 
 test("a minimal body becomes a PUBLIC task with a server-side id and one attempt", () => {
   const parsed = parseAiRequest(VALID, "tsk_1");
@@ -42,6 +46,23 @@ test("the client can never choose classification, budget, provider or model", ()
     assert.equal(parsed.status, 400);
     assert.match(parsed.error, new RegExp(field));
   }
+});
+
+test("every request must carry an explicit boolean PUBLIC attestation", () => {
+  for (const value of [undefined, false, "true", 1, null]) {
+    const body: Record<string, unknown> = { ...VALID };
+    if (value === undefined) delete body.attestPublicData;
+    else body.attestPublicData = value;
+    const parsed = parseAiRequest(body, "tsk_1");
+    assert.equal(parsed.ok, false, String(value));
+    if (parsed.ok) return;
+    assert.equal(parsed.status, 400);
+    assert.match(parsed.error, /Attestazione PUBLIC/);
+  }
+
+  const parsed = parseAiRequest(VALID, "tsk_1");
+  assert.ok(parsed.ok);
+  if (parsed.ok) assert.equal(parsed.attestationVersion, PUBLIC_ATTESTATION.version);
 });
 
 test("malformed bodies are refused", () => {
@@ -99,6 +120,61 @@ test("a missing server task id is an internal error, never a task without a trac
     if (parsed.ok) return;
     assert.equal(parsed.status, 500);
   }
+});
+
+const fakeRequest = (headers: Record<string, string>, body: ReadableStream<Uint8Array> | null) =>
+  ({ headers: new Headers(headers), body }) as unknown as Request;
+
+const chunked = (chunks: Uint8Array[]) =>
+  new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of chunks) controller.enqueue(chunk);
+      controller.close();
+    },
+  });
+
+test("the body is read with a hard ceiling before any JSON parsing", async () => {
+  const ok = await readJsonBody(
+    new Request("http://localhost/api/ai", { method: "POST", body: JSON.stringify({ a: 1 }) }),
+  );
+  assert.equal(ok.ok, true);
+  if (ok.ok) assert.deepEqual(ok.value, { a: 1 });
+
+  // A declared length above the ceiling is refused without reading the body at all.
+  const declaredTooLarge = await readJsonBody(fakeRequest({ "content-length": "999999999" }, null));
+  assert.equal(declaredTooLarge.ok, false);
+  if (!declaredTooLarge.ok) assert.equal(declaredTooLarge.status, 413);
+
+  const invalidLength = await readJsonBody(fakeRequest({ "content-length": "12abc" }, null));
+  assert.equal(invalidLength.ok, false);
+  if (!invalidLength.ok) assert.equal(invalidLength.status, 400);
+
+  const zeroLength = await readJsonBody(fakeRequest({ "content-length": "0" }, null));
+  assert.equal(zeroLength.ok, false);
+  if (!zeroLength.ok) assert.equal(zeroLength.status, 400);
+
+  // A chunked body without Content-Length is legitimate, but still capped.
+  const oversizedStream = await readJsonBody(
+    fakeRequest({}, chunked([new Uint8Array(300_000), new Uint8Array(300_000)])),
+  );
+  assert.equal(oversizedStream.ok, false);
+  if (!oversizedStream.ok) assert.equal(oversizedStream.status, 413);
+
+  const undeclaredButValid = await readJsonBody(
+    fakeRequest({}, chunked([new TextEncoder().encode(JSON.stringify({ b: 2 }))])),
+  );
+  assert.equal(undeclaredButValid.ok, true);
+  if (undeclaredButValid.ok) assert.deepEqual(undeclaredButValid.value, { b: 2 });
+
+  const malformed = await readJsonBody(fakeRequest({}, chunked([new TextEncoder().encode("not-json")])));
+  assert.equal(malformed.ok, false);
+  if (!malformed.ok) assert.equal(malformed.status, 400);
+
+  const invalidUtf8 = await readJsonBody(fakeRequest({}, chunked([new Uint8Array([0xff, 0xfe])])));
+  assert.equal(invalidUtf8.ok, false);
+  if (!invalidUtf8.ok) assert.equal(invalidUtf8.status, 400);
+
+  assert.equal(ROUTE_LIMITS.maxBodyBytes, 512 * 1024);
 });
 
 const success: GatewayResult = {

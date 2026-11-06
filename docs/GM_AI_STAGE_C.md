@@ -36,8 +36,9 @@ Evidence read on the review date:
 
 Consequences encoded in the adapter:
 
-1. Only a model id ending in `:free` is accepted, at configuration time and again
-   at call time.
+1. Only a model id ending in `:free` is accepted at configuration time, and the
+   completion must name **exactly** the configured model: another `:free` variant,
+   a paid model or a missing `model` field is an invalid response with no fallback.
 2. The request body never contains a `models` array, so no paid fallback can be
    billed. `allow_fallbacks: false` additionally stops provider-level fallback.
 3. `data_collection: "deny"` restricts routing to providers that do not collect
@@ -79,8 +80,22 @@ contract lives in `src/lib/ai/http.ts`, which is pure and tested directly.
   `AiStore.claimWindow` in `ai_gate` under `BEGIN IMMEDIATE`, so several processes
   cannot each allow 18. The first claim of a window fixes its limit; a later caller
   cannot widen it. The adapter's in-memory limiter remains as defence in depth.
+- **PUBLIC attestation required**: every request must carry
+  `attestPublicData: true` (JSON boolean). Without it the request is refused with
+  400 and nothing is sent. The confirmation states that the text is public and
+  contains no INTERNAL/CONFIDENTIAL/SECRET data, credentials, keys or personal
+  data. It is an explicit operator responsibility, **not** an automatic detector:
+  forcing `dataClass: "PUBLIC"` on the server cannot prove what the copied text
+  contains. Each attestation is stored in `ai_attestation` with task id, user id,
+  statement version and timestamp, after the daily budget is claimed and before
+  the provider call; if the row cannot be written, the prompt is not sent (503).
 - **Input ceiling**: prompt ≤ 64 000 characters (≈16k tokens, the approved record's
   input limit); the adapter re-checks the estimate before sending.
+- **Body ceiling**: at most 512 KiB, enforced by `readJsonBody` before `JSON.parse`.
+  A declared `Content-Length` above the limit is refused with 413 without reading
+  the body; a missing or chunked length is still capped while streaming, so an
+  unbounded body is never buffered. Invalid `Content-Length`, malformed JSON and
+  invalid UTF-8 are 400.
 - **Output**: gateway codes map to 400/402/403/422/429/502/503/504 with a safe
   message. Attempts expose provider, model, outcome, duration and usage only — never
   provider detail, keys or stack traces. `Cache-Control: no-store`.
@@ -101,12 +116,14 @@ any network call. It is not wired into any page yet, and it is not a public API.
 
 ## Database migration
 
-Additive and idempotent: three new tables, no change to any existing table.
+Additive and idempotent: **five** new tables, no change to any existing table.
 
 | Table | Purpose |
 |---|---|
 | `ai_providers` | provider/model identity, revision, state, billing/card/overage flags, evidence URL and check date, limits, capabilities, health |
 | `ai_quota` | window start, window length, used counter, limit, cooldown deadline and code |
+| `ai_gate` | shared rolling windows (per-minute limits), keyed by caller; separate from the provider daily quota |
+| `ai_attestation` | one row per task: who attested the text as PUBLIC, statement version, timestamp; the content itself is not stored |
 | `ai_audit` | gateway events (task, provider, model, code, redacted detail) |
 
 `AI_SCHEMA_SQL` is applied by `getDb()` on every start and by `AiStore.migrate()`.
@@ -117,7 +134,29 @@ Quota spending happens in `AiStore.claim()` inside `BEGIN IMMEDIATE` with a
 rollback on error and a 2-second busy retry, so two processes sharing the file
 cannot both take the last request. A cooldown is stored on the row, which means a
 billing prompt or a rate limit survives a restart instead of being forgotten in
-memory.
+memory. `claimWindow` (the per-minute window) uses the same transaction.
+
+### Deployment boundary: SQLite is not a distributed limiter
+
+`src/lib/paths.ts` resolves the database to `GM_DB_PATH` or `<GM_DATA_DIR>/gm.db`.
+`BEGIN IMMEDIATE` makes `claim()` and `claimWindow()` atomic **only among processes
+that open the same SQLite file on the same persistent filesystem**. It provides no
+coordination between:
+
+- serverless functions (each instance may get its own `/tmp` or ephemeral layer);
+- several hosts or containers without a shared, persistent volume;
+- replicas whose `GM_DB_PATH` points to different files.
+
+In those topologies each instance would enforce its own 18 requests/minute and its
+own 20 requests/day per account, so the free quota could be exceeded even though
+every process respects its local limit. The per-process throttle in `guardedMutation`
+and the adapter's in-memory limiter do not close this gap either.
+
+Therefore production requires a single shared, persistent SQLite database and the
+explicit declaration `GM_AI_SHARED_DB=true`. `parseOpenRouterConfig` refuses to
+enable the adapter in production without it, and the route answers 503. If the
+hosting cannot provide such a file, the AI must stay disabled in production: no
+paid database or hosted queue is introduced to work around it (budget EUR 0.00).
 
 ## Enabling it (owner action)
 
@@ -125,6 +164,8 @@ memory.
 GM_AI_OPENROUTER=true
 OPENROUTER_API_KEY=<server-side only>
 GM_AI_OPENROUTER_MODEL=cohere/north-mini-code:free
+# Production only: the SQLite file must be shared and persistent across instances.
+GM_AI_SHARED_DB=true
 ```
 
 Before enabling, re-check the four evidence URLs above: if any of them changed,
@@ -138,15 +179,19 @@ by a restart.
 |---|---|
 | `npm ci` | clean |
 | `npm run typecheck` | exit 0 |
-| `npm test` | see the PR: no failures, AI tests included |
+| `npm test` | 114/114 passed, AI tests included |
 | `npm run build` | exit 0 |
 | `npm audit --omit=dev --audit-level=high` | 0 vulnerabilities |
 
-Dedicated tests: adapter mapping and payload shape, migration idempotency, provider
+Dedicated tests: adapter mapping and payload shape, strict model identity
+(approved, other `:free`, paid, missing), migration idempotency, provider
 round-trip, non-destructive seeding, quota exhaustion, restart persistence,
 multi-process claim concurrency, gateway + persisted ledger, privacy refusals,
-credential redaction, runtime opt-in, and the financial boundary (no order,
-wallet, credential or withdrawal path, single networked module, live hard stop).
+credential redaction, runtime opt-in, the production shared-database gate,
+mandatory PUBLIC attestation (missing, false, non-boolean) with persistence and
+immutability, HTTP body ceiling (declared, chunked, malformed, invalid UTF-8),
+and the financial boundary (no order, wallet, credential or withdrawal path,
+single networked module, live hard stop).
 
 ## Still open
 

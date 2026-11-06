@@ -11,6 +11,13 @@ import { DAILY_WINDOW_MS } from "./quota";
 import { AI_SCHEMA_SQL } from "./store-schema";
 import type { AuditEvent, BillingModel, FailureCode, ProviderRecord, ProviderState } from "./types";
 
+export type AttestationRecord = {
+  taskId: string;
+  userId: string;
+  statementVersion: string;
+  attestedAtMs: number;
+};
+
 export type QuotaClaim =
   | { ok: true; used: number; remaining: number }
   | { ok: false; code: FailureCode; used: number; remaining: number };
@@ -363,6 +370,44 @@ export class AiStore {
         disabledCode: code,
       });
     });
+  }
+
+  /**
+   * Persist the operator's PUBLIC attestation for a task. Written before the
+   * provider call and never overwritten: a replayed task id is refused, so the
+   * audit cannot be rewritten by a second request.
+   */
+  recordAttestation(record: AttestationRecord): void {
+    this.migrate();
+    if (record.taskId.trim() === "" || record.userId.trim() === "") {
+      throw new Error("attestazione senza task o utente");
+    }
+    if (record.statementVersion.trim() === "") throw new Error("attestazione senza versione");
+    if (!Number.isInteger(record.attestedAtMs) || record.attestedAtMs <= 0) {
+      throw new Error("attestazione con timestamp non valido");
+    }
+    this.db
+      .prepare(
+        "INSERT INTO ai_attestation(task_id, user_id, statement_version, attested_at_ms) VALUES(?,?,?,?)",
+      )
+      .run(record.taskId, record.userId, record.statementVersion, record.attestedAtMs);
+  }
+
+  attestationFor(taskId: string): AttestationRecord | null {
+    this.migrate();
+    const row = this.db
+      .prepare("SELECT task_id, user_id, statement_version, attested_at_ms FROM ai_attestation WHERE task_id = ?")
+      .get(taskId) as unknown as
+      | { task_id: string; user_id: string; statement_version: string; attested_at_ms: number }
+      | undefined;
+    return row
+      ? {
+          taskId: row.task_id,
+          userId: row.user_id,
+          statementVersion: row.statement_version,
+          attestedAtMs: row.attested_at_ms,
+        }
+      : null;
   }
 
   recordAudit(event: AuditEvent): void {
