@@ -27,6 +27,20 @@ function isKnownPermissiveExpression(expression) {
   return tokens.length > 0 && tokens.every((token) => permissiveIds.has(token));
 }
 
+/**
+ * A retained restricted licence is only acceptable when the exception is documented:
+ * why it is acceptable, which obligations it creates, and when it must be reviewed
+ * again. Without those fields the baseline would turn any copyleft dependency into an
+ * implicit approval, which is exactly the hole this check has to close.
+ */
+function undocumentedException(entry) {
+  const problems = [];
+  if (typeof entry.reason !== "string" || entry.reason.trim().length < 10) problems.push("reason");
+  if (typeof entry.obligations !== "string" || entry.obligations.trim().length < 10) problems.push("obligations");
+  if (typeof entry.reviewDueOn !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(entry.reviewDueOn)) problems.push("reviewDueOn");
+  return problems;
+}
+
 for (const [lockPathName, metadata] of Object.entries(lock.packages ?? {})) {
   if (!lockPathName) continue;
   const name = lockPathName.replace(/^node_modules\//, "");
@@ -46,7 +60,14 @@ for (const [lockPathName, metadata] of Object.entries(lock.packages ?? {})) {
     if (previous.license !== license) {
       errors.push(`${name}: license changed from "${previous.license}" to "${license}" — manual review and baseline update required`);
     } else if (restrictedPattern.test(license)) {
-      review.push(`${name}@${version}: retained baseline exception (${license}); verify upstream notices and distribution obligations`);
+      const undocumented = undocumentedException(previous);
+      if (undocumented.length > 0) {
+        errors.push(
+          `${name}@${version}: baseline exception is not documented (missing or invalid: ${undocumented.join(", ")}) — record reason, obligations and reviewDueOn`,
+        );
+      } else {
+        review.push(`${name}@${version}: documented baseline exception (${license}); review due ${previous.reviewDueOn}`);
+      }
     }
     continue;
   }

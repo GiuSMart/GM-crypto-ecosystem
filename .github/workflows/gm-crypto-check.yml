@@ -30,7 +30,7 @@ jobs:
       - name: Check dependency license policy
         run: npm run licenses:check
       - name: Generate upstream third-party notices
-        run: npm run licenses:notices
+        run: npm run licenses:notices:strict
       - name: Generate CycloneDX SBOM
         run: npm run licenses:sbom
       - name: Audit production dependencies

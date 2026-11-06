@@ -134,43 +134,73 @@
     },
     "@img/sharp-libvips-darwin-arm64": {
       "version": "1.3.4",
-      "license": "LGPL-3.0-or-later"
+      "license": "LGPL-3.0-or-later",
+      "reason": "Transitive dependency of the build and image toolchain, consumed unmodified.",
+      "obligations": "Ship the LGPL text, keep the library replaceable (no static relink) and offer the corresponding source on request.",
+      "reviewDueOn": "2027-01-31"
     },
     "@img/sharp-libvips-darwin-x64": {
       "version": "1.3.4",
-      "license": "LGPL-3.0-or-later"
+      "license": "LGPL-3.0-or-later",
+      "reason": "Transitive dependency of the build and image toolchain, consumed unmodified.",
+      "obligations": "Ship the LGPL text, keep the library replaceable (no static relink) and offer the corresponding source on request.",
+      "reviewDueOn": "2027-01-31"
     },
     "@img/sharp-libvips-linux-arm": {
       "version": "1.3.4",
-      "license": "LGPL-3.0-or-later"
+      "license": "LGPL-3.0-or-later",
+      "reason": "Transitive dependency of the build and image toolchain, consumed unmodified.",
+      "obligations": "Ship the LGPL text, keep the library replaceable (no static relink) and offer the corresponding source on request.",
+      "reviewDueOn": "2027-01-31"
     },
     "@img/sharp-libvips-linux-arm64": {
       "version": "1.3.4",
-      "license": "LGPL-3.0-or-later"
+      "license": "LGPL-3.0-or-later",
+      "reason": "Transitive dependency of the build and image toolchain, consumed unmodified.",
+      "obligations": "Ship the LGPL text, keep the library replaceable (no static relink) and offer the corresponding source on request.",
+      "reviewDueOn": "2027-01-31"
     },
     "@img/sharp-libvips-linux-ppc64": {
       "version": "1.3.4",
-      "license": "LGPL-3.0-or-later"
+      "license": "LGPL-3.0-or-later",
+      "reason": "Transitive dependency of the build and image toolchain, consumed unmodified.",
+      "obligations": "Ship the LGPL text, keep the library replaceable (no static relink) and offer the corresponding source on request.",
+      "reviewDueOn": "2027-01-31"
     },
     "@img/sharp-libvips-linux-riscv64": {
       "version": "1.3.4",
-      "license": "LGPL-3.0-or-later"
+      "license": "LGPL-3.0-or-later",
+      "reason": "Transitive dependency of the build and image toolchain, consumed unmodified.",
+      "obligations": "Ship the LGPL text, keep the library replaceable (no static relink) and offer the corresponding source on request.",
+      "reviewDueOn": "2027-01-31"
     },
     "@img/sharp-libvips-linux-s390x": {
       "version": "1.3.4",
-      "license": "LGPL-3.0-or-later"
+      "license": "LGPL-3.0-or-later",
+      "reason": "Transitive dependency of the build and image toolchain, consumed unmodified.",
+      "obligations": "Ship the LGPL text, keep the library replaceable (no static relink) and offer the corresponding source on request.",
+      "reviewDueOn": "2027-01-31"
     },
     "@img/sharp-libvips-linux-x64": {
       "version": "1.3.4",
-      "license": "LGPL-3.0-or-later"
+      "license": "LGPL-3.0-or-later",
+      "reason": "Transitive dependency of the build and image toolchain, consumed unmodified.",
+      "obligations": "Ship the LGPL text, keep the library replaceable (no static relink) and offer the corresponding source on request.",
+      "reviewDueOn": "2027-01-31"
     },
     "@img/sharp-libvips-linuxmusl-arm64": {
       "version": "1.3.4",
-      "license": "LGPL-3.0-or-later"
+      "license": "LGPL-3.0-or-later",
+      "reason": "Transitive dependency of the build and image toolchain, consumed unmodified.",
+      "obligations": "Ship the LGPL text, keep the library replaceable (no static relink) and offer the corresponding source on request.",
+      "reviewDueOn": "2027-01-31"
     },
     "@img/sharp-libvips-linuxmusl-x64": {
       "version": "1.3.4",
-      "license": "LGPL-3.0-or-later"
+      "license": "LGPL-3.0-or-later",
+      "reason": "Transitive dependency of the build and image toolchain, consumed unmodified.",
+      "obligations": "Ship the LGPL text, keep the library replaceable (no static relink) and offer the corresponding source on request.",
+      "reviewDueOn": "2027-01-31"
     },
     "@img/sharp-linux-arm": {
       "version": "0.35.5",
@@ -206,7 +236,10 @@
     },
     "@img/sharp-wasm32": {
       "version": "0.35.5",
-      "license": "Apache-2.0 AND LGPL-3.0-or-later AND MIT"
+      "license": "Apache-2.0 AND LGPL-3.0-or-later AND MIT",
+      "reason": "Transitive dependency of the build and image toolchain, consumed unmodified.",
+      "obligations": "Ship the LGPL text, keep the library replaceable (no static relink) and offer the corresponding source on request.",
+      "reviewDueOn": "2027-01-31"
     },
     "@img/sharp-webcontainers-wasm32": {
       "version": "0.35.5",
@@ -214,15 +247,24 @@
     },
     "@img/sharp-win32-arm64": {
       "version": "0.35.5",
-      "license": "Apache-2.0 AND LGPL-3.0-or-later"
+      "license": "Apache-2.0 AND LGPL-3.0-or-later",
+      "reason": "Transitive dependency of the build and image toolchain, consumed unmodified.",
+      "obligations": "Ship the LGPL text, keep the library replaceable (no static relink) and offer the corresponding source on request.",
+      "reviewDueOn": "2027-01-31"
     },
     "@img/sharp-win32-ia32": {
       "version": "0.35.5",
-      "license": "Apache-2.0 AND LGPL-3.0-or-later"
+      "license": "Apache-2.0 AND LGPL-3.0-or-later",
+      "reason": "Transitive dependency of the build and image toolchain, consumed unmodified.",
+      "obligations": "Ship the LGPL text, keep the library replaceable (no static relink) and offer the corresponding source on request.",
+      "reviewDueOn": "2027-01-31"
     },
     "@img/sharp-win32-x64": {
       "version": "0.35.5",
-      "license": "Apache-2.0 AND LGPL-3.0-or-later"
+      "license": "Apache-2.0 AND LGPL-3.0-or-later",
+      "reason": "Transitive dependency of the build and image toolchain, consumed unmodified.",
+      "obligations": "Ship the LGPL text, keep the library replaceable (no static relink) and offer the corresponding source on request.",
+      "reviewDueOn": "2027-01-31"
     },
     "@jridgewell/gen-mapping": {
       "version": "0.3.13",
@@ -362,7 +404,10 @@
     },
     "caniuse-lite": {
       "version": "1.0.30001820",
-      "license": "CC-BY-4.0"
+      "license": "CC-BY-4.0",
+      "reason": "Build-time asset package; attribution is retained in the generated notices.",
+      "obligations": "Preserve attribution and the CC-BY notice in every distribution.",
+      "reviewDueOn": "2027-01-31"
     },
     "client-only": {
       "version": "0.0.1",
@@ -398,51 +443,87 @@
     },
     "lightningcss": {
       "version": "1.32.0",
-      "license": "MPL-2.0"
+      "license": "MPL-2.0",
+      "reason": "File-level copyleft: used unmodified as a prebuilt tool dependency.",
+      "obligations": "Keep the MPL-2.0 text with any distributed binary; publish changes to MPL-covered files if any are made.",
+      "reviewDueOn": "2027-01-31"
     },
     "lightningcss-android-arm64": {
       "version": "1.32.0",
-      "license": "MPL-2.0"
+      "license": "MPL-2.0",
+      "reason": "File-level copyleft: used unmodified as a prebuilt tool dependency.",
+      "obligations": "Keep the MPL-2.0 text with any distributed binary; publish changes to MPL-covered files if any are made.",
+      "reviewDueOn": "2027-01-31"
     },
     "lightningcss-darwin-arm64": {
       "version": "1.32.0",
-      "license": "MPL-2.0"
+      "license": "MPL-2.0",
+      "reason": "File-level copyleft: used unmodified as a prebuilt tool dependency.",
+      "obligations": "Keep the MPL-2.0 text with any distributed binary; publish changes to MPL-covered files if any are made.",
+      "reviewDueOn": "2027-01-31"
     },
     "lightningcss-darwin-x64": {
       "version": "1.32.0",
-      "license": "MPL-2.0"
+      "license": "MPL-2.0",
+      "reason": "File-level copyleft: used unmodified as a prebuilt tool dependency.",
+      "obligations": "Keep the MPL-2.0 text with any distributed binary; publish changes to MPL-covered files if any are made.",
+      "reviewDueOn": "2027-01-31"
     },
     "lightningcss-freebsd-x64": {
       "version": "1.32.0",
-      "license": "MPL-2.0"
+      "license": "MPL-2.0",
+      "reason": "File-level copyleft: used unmodified as a prebuilt tool dependency.",
+      "obligations": "Keep the MPL-2.0 text with any distributed binary; publish changes to MPL-covered files if any are made.",
+      "reviewDueOn": "2027-01-31"
     },
     "lightningcss-linux-arm-gnueabihf": {
       "version": "1.32.0",
-      "license": "MPL-2.0"
+      "license": "MPL-2.0",
+      "reason": "File-level copyleft: used unmodified as a prebuilt tool dependency.",
+      "obligations": "Keep the MPL-2.0 text with any distributed binary; publish changes to MPL-covered files if any are made.",
+      "reviewDueOn": "2027-01-31"
     },
     "lightningcss-linux-arm64-gnu": {
       "version": "1.32.0",
-      "license": "MPL-2.0"
+      "license": "MPL-2.0",
+      "reason": "File-level copyleft: used unmodified as a prebuilt tool dependency.",
+      "obligations": "Keep the MPL-2.0 text with any distributed binary; publish changes to MPL-covered files if any are made.",
+      "reviewDueOn": "2027-01-31"
     },
     "lightningcss-linux-arm64-musl": {
       "version": "1.32.0",
-      "license": "MPL-2.0"
+      "license": "MPL-2.0",
+      "reason": "File-level copyleft: used unmodified as a prebuilt tool dependency.",
+      "obligations": "Keep the MPL-2.0 text with any distributed binary; publish changes to MPL-covered files if any are made.",
+      "reviewDueOn": "2027-01-31"
     },
     "lightningcss-linux-x64-gnu": {
       "version": "1.32.0",
-      "license": "MPL-2.0"
+      "license": "MPL-2.0",
+      "reason": "File-level copyleft: used unmodified as a prebuilt tool dependency.",
+      "obligations": "Keep the MPL-2.0 text with any distributed binary; publish changes to MPL-covered files if any are made.",
+      "reviewDueOn": "2027-01-31"
     },
     "lightningcss-linux-x64-musl": {
       "version": "1.32.0",
-      "license": "MPL-2.0"
+      "license": "MPL-2.0",
+      "reason": "File-level copyleft: used unmodified as a prebuilt tool dependency.",
+      "obligations": "Keep the MPL-2.0 text with any distributed binary; publish changes to MPL-covered files if any are made.",
+      "reviewDueOn": "2027-01-31"
     },
     "lightningcss-win32-arm64-msvc": {
       "version": "1.32.0",
-      "license": "MPL-2.0"
+      "license": "MPL-2.0",
+      "reason": "File-level copyleft: used unmodified as a prebuilt tool dependency.",
+      "obligations": "Keep the MPL-2.0 text with any distributed binary; publish changes to MPL-covered files if any are made.",
+      "reviewDueOn": "2027-01-31"
     },
     "lightningcss-win32-x64-msvc": {
       "version": "1.32.0",
-      "license": "MPL-2.0"
+      "license": "MPL-2.0",
+      "reason": "File-level copyleft: used unmodified as a prebuilt tool dependency.",
+      "obligations": "Keep the MPL-2.0 text with any distributed binary; publish changes to MPL-covered files if any are made.",
+      "reviewDueOn": "2027-01-31"
     },
     "magic-string": {
       "version": "0.30.21",

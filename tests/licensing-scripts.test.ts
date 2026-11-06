@@ -11,8 +11,9 @@ const REPO_ROOT = process.cwd();
 
 type FixtureOptions = {
   packages: Record<string, { version?: string; license?: string }>;
-  baseline?: Record<string, string>;
+  baseline?: Record<string, string | Record<string, unknown>>;
   files?: Record<string, Record<string, string>>;
+  extraFiles?: Record<string, string>;
 };
 
 type Fixture = { dir: string; cleanup: () => void };
@@ -45,7 +46,10 @@ function createFixture(options: FixtureOptions): Fixture {
     JSON.stringify(
       {
         packages: Object.fromEntries(
-          Object.entries(options.baseline ?? {}).map(([name, license]) => [name, { license }]),
+          Object.entries(options.baseline ?? {}).map(([name, value]) => [
+            name,
+            typeof value === "string" ? { license: value } : value,
+          ]),
         ),
       },
       null,
@@ -58,6 +62,11 @@ function createFixture(options: FixtureOptions): Fixture {
     for (const [fileName, content] of Object.entries(files)) {
       fs.writeFileSync(path.join(packageDir, fileName), content);
     }
+  }
+  for (const [relativePath, content] of Object.entries(options.extraFiles ?? {})) {
+    const target = path.join(dir, relativePath);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, content);
   }
   return { dir, cleanup: () => fs.rmSync(dir, { recursive: true, force: true }) };
 }
@@ -141,7 +150,16 @@ test("check-licenses blocks when an approved baseline entry changes licence", (t
   );
 });
 
-test("check-licenses reports a retained baseline exception as review-only, not as approval", (t) => {
+const documentedException = {
+  license: "LGPL-3.0-only",
+  reason: "Transitive build dependency, consumed unmodified.",
+  obligations: "Ship the LGPL text and keep the library replaceable.",
+  reviewDueOn: "2027-01-31",
+};
+
+test("check-licenses blocks a baseline exception that is not documented", (t) => {
+  // The baseline used to be a silent trust anchor: this entry passed with exit 0 as
+  // soon as someone copied the licence string into it.
   const fixture = createFixture({
     packages: { legacy: { license: "LGPL-3.0-only" } },
     baseline: { legacy: "LGPL-3.0-only" },
@@ -150,10 +168,35 @@ test("check-licenses reports a retained baseline exception as review-only, not a
 
   const result = runScript("check-licenses.mjs", fixture.dir);
 
-  // Documented behaviour: the reviewed baseline entry is the trust anchor, so the
-  // gate passes, but the retained copyleft obligation is surfaced on every run.
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /baseline exception is not documented/);
+  assert.match(result.stderr, /reason, obligations, reviewDueOn/);
+});
+
+test("check-licenses accepts a documented baseline exception and surfaces its review date", (t) => {
+  const fixture = createFixture({
+    packages: { legacy: { license: "LGPL-3.0-only" } },
+    baseline: { legacy: documentedException },
+  });
+  t.after(fixture.cleanup);
+
+  const result = runScript("check-licenses.mjs", fixture.dir);
+
   assert.equal(result.status, 0);
-  assert.match(result.stderr, /retained baseline exception \(LGPL-3\.0-only\)/);
+  assert.match(result.stderr, /documented baseline exception \(LGPL-3\.0-only\); review due 2027-01-31/);
+});
+
+test("check-licenses rejects a baseline exception with an unparsable review date", (t) => {
+  const fixture = createFixture({
+    packages: { legacy: { license: "LGPL-3.0-only" } },
+    baseline: { legacy: { ...documentedException, reviewDueOn: "31/01/2027" } },
+  });
+  t.after(fixture.cleanup);
+
+  const result = runScript("check-licenses.mjs", fixture.dir);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /reviewDueOn/);
 });
 
 test("generate-third-party-notices bundles upstream licence text", (t) => {
@@ -173,7 +216,7 @@ test("generate-third-party-notices bundles upstream licence text", (t) => {
   assert.equal(result.status, 0);
   assert.match(
     result.stdout,
-    /Included 1 license\/notice file\(s\); 0 package\(s\) require manual notice retrieval/,
+    /Included 1 license\/notice file\(s\); 0 package\(s\) verified as shipping none; 0 package\(s\) require manual notice retrieval/,
   );
   const generated = fs.readFileSync(
     path.join(fixture.dir, "artifacts", "THIRD_PARTY_NOTICES.generated.md"),
@@ -201,7 +244,7 @@ test("generate-third-party-notices fails only in strict mode when notices are mi
     path.join(fixture.dir, "artifacts", "THIRD_PARTY_NOTICES.generated.md"),
     "utf8",
   );
-  assert.match(generated, /manual retrieval required/);
+  assert.match(generated, /\*\*not found\*\* \(run `npm run licenses:upstream`\)/);
 });
 
 test("generate-third-party-notices refuses lockfile paths outside node_modules", (t) => {
@@ -256,4 +299,76 @@ test("generate-sbom marks packages without licence metadata as NOASSERTION", (t)
   ) as { components: { licenses: { expression: string }[] }[] };
 
   assert.equal(bom.components[0]?.licenses[0]?.expression, "NOASSERTION");
+});
+
+/* -------------------------------------------------------------------------- */
+/* Upstream recovery: verified notices and verified absences                   */
+/* -------------------------------------------------------------------------- */
+
+test("notices include a notice file recovered from a verified upstream tarball", (t) => {
+  const fixture = createFixture({
+    packages: { delta: { license: "MIT" } },
+    files: { delta: { "package.json": packageJson("delta", "MIT") } },
+    extraFiles: {
+      "licenses/upstream/manifest.json": JSON.stringify({
+        schemaVersion: 1,
+        packages: {
+          delta: {
+            version: "1.0.0",
+            license: "MIT",
+            status: "notice-files",
+            files: [{ path: "licenses/upstream/delta@1.0.0/LICENSE", source: "package/LICENSE", sha256: "00" }],
+          },
+        },
+      }),
+      "licenses/upstream/delta@1.0.0/LICENSE": "Recovered MIT text\n",
+    },
+  });
+  t.after(fixture.cleanup);
+
+  const result = runScript("generate-third-party-notices.mjs", fixture.dir, ["--strict"]);
+
+  assert.equal(result.status, 0);
+  const generated = fs.readFileSync(
+    path.join(fixture.dir, "artifacts", "THIRD_PARTY_NOTICES.generated.md"),
+    "utf8",
+  );
+  assert.match(generated, /Recovered MIT text/);
+  assert.match(generated, /integrity verified against the lockfile/);
+});
+
+test("notices accept a verified absence instead of an invented licence text", (t) => {
+  const fixture = createFixture({
+    packages: { epsilon: { license: "MIT" } },
+    files: { epsilon: { "package.json": packageJson("epsilon", "MIT") } },
+    extraFiles: {
+      "licenses/upstream/manifest.json": JSON.stringify({
+        schemaVersion: 1,
+        packages: { epsilon: { version: "1.0.0", license: "MIT", status: "no-notice-file", files: [] } },
+      }),
+    },
+  });
+  t.after(fixture.cleanup);
+
+  const result = runScript("generate-third-party-notices.mjs", fixture.dir, ["--strict"]);
+
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /1 package\(s\) verified as shipping none; 0 package\(s\) require manual notice retrieval/);
+  const generated = fs.readFileSync(
+    path.join(fixture.dir, "artifacts", "THIRD_PARTY_NOTICES.generated.md"),
+    "utf8",
+  );
+  assert.match(generated, /none shipped by the publisher/);
+});
+
+test("notices still fail in strict mode when there is neither a file nor a record", (t) => {
+  const fixture = createFixture({
+    packages: { zeta: { license: "MIT" } },
+    files: { zeta: { "package.json": packageJson("zeta", "MIT") } },
+  });
+  t.after(fixture.cleanup);
+
+  const result = runScript("generate-third-party-notices.mjs", fixture.dir, ["--strict"]);
+
+  assert.equal(result.status, 2);
 });

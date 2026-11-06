@@ -19,6 +19,7 @@
     "licenses:report": "node scripts/check-licenses.mjs --report",
     "licenses:notices": "node scripts/generate-third-party-notices.mjs",
     "licenses:notices:strict": "node scripts/generate-third-party-notices.mjs --strict",
+    "licenses:upstream": "node scripts/fetch-upstream-notices.mjs",
     "licenses:sbom": "node scripts/generate-sbom.mjs"
   },
   "dependencies": {
