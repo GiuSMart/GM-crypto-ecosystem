@@ -64,9 +64,12 @@ senza nascondere le commissioni.
 ## 4. Liquidazione: cosa il modello fa e cosa non può fare
 
 La simulazione separa il **P&L della strategia** (curva del funding meno i costi già
-pagati) dal **conto margine** della gamba perpetual (`perpNotional / leverage` più il
-P&L). La posizione è liquidata quando il conto margine non copre più il requisito di
-mantenimento. A quel punto:
+pagati) dal **conto margine** della gamba perpetual (`perpNotional / leverage`, più il
+funding incassato, meno **solo** il costo di ingresso della gamba perpetual). Le
+commissioni e lo slippage della gamba spot sono un costo della strategia e non
+toccano il prezzo di liquidazione: attribuirgliele liquiderrebbe una posizione
+ancora solvibile. La posizione è liquidata quando il conto margine non copre più il
+requisito di mantenimento. A quel punto:
 
 - la simulazione **si interrompe** in quel periodo: nessun funding successivo viene
   incassato;
@@ -93,7 +96,13 @@ simulata. Ogni risultato porta il campo `limitations` con questa nota.
 - **Validazione runtime**: nozionali, funding rate, buffer, squilibrio massimo, età
   dati e slippage devono essere finiti e nei domini ammessi; flag e `context`
   devono essere valori noti. Un NaN non può più saltare un confronto, perché ogni
-  campo è controllato prima delle regole di business.
+  campo è controllato prima delle regole di business. Limiti semantici espliciti:
+  funding rate in [-1, 1], slippage in [0, 100]%, buffer di liquidazione in
+  (-100, 100]%, minimo buffer in [0, 100]%, età dati in [0, 24h], nozionale fino a
+  10¹² quote. `portfolio` e `policy` sono validati anche nella struttura interna
+  (mappe di esposizione, flag, elenchi di venue e strategie); un oggetto incompleto,
+  corrotto o che lancia durante la lettura produce un verdetto bloccante, mai
+  un'eccezione non gestita.
 - **Opportunità**: `venueId` e `instrumentId` non vuoti, `indexPrice > 0`,
   `nowMs` esplicito, `nextFundingAt` non nel passato e non oltre 48 ore,
   `intervalsPerDay` e `legsPerSide` interi positivi, `allowNegativeFunding` booleano.

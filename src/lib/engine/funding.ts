@@ -258,6 +258,15 @@ export function evaluateFundingOpportunity(input: FundingOpportunityInput): Fund
   if (typeof input.allowNegativeFunding !== "boolean") {
     reasons.push("allowNegativeFunding deve essere esplicito (true/false).");
   }
+  // An epoch in milliseconds is an integer. A negative, fractional or non-finite
+  // reference time must be refused, otherwise it can silently disable the
+  // settlement-in-the-past check below.
+  if (!Number.isInteger(input.nowMs) || input.nowMs <= 0) {
+    reasons.push("nowMs deve essere un timestamp epoch in millisecondi, intero e positivo.");
+  }
+  if (!Number.isInteger(perpetual.nextFundingAt) || perpetual.nextFundingAt <= 0) {
+    reasons.push("perpetual.nextFundingAt deve essere un timestamp epoch intero e positivo.");
+  }
   if (spot.price <= 0) reasons.push("spot.price deve essere maggiore di zero.");
   if (perpetual.markPrice <= 0) reasons.push("perpetual.markPrice deve essere maggiore di zero.");
   if (perpetual.indexPrice <= 0) {
@@ -283,14 +292,16 @@ export function evaluateFundingOpportunity(input: FundingOpportunityInput): Fund
       `Dati obsoleti (spot ${spot.dataAgeMs}ms, perp ${perpetual.dataAgeMs}ms) oltre il massimo ${input.maxDataAgeMs}ms.`,
     );
   }
-  if (perpetual.nextFundingAt <= 0) {
-    reasons.push("perpetual.nextFundingAt mancante: senza orario di settlement il carry non è pianificabile.");
-  } else if (input.nowMs > 0 && perpetual.nextFundingAt < input.nowMs) {
-    reasons.push(
-      `perpetual.nextFundingAt (${perpetual.nextFundingAt}) precede nowMs (${input.nowMs}): un settlement nel passato non è il prossimo pagamento.`,
-    );
-  } else if (perpetual.nextFundingAt > input.nowMs + 48 * 3600 * 1000) {
-    reasons.push("perpetual.nextFundingAt oltre 48 ore da nowMs: timestamp non plausibile per il prossimo settlement.");
+  // Only compare when both timestamps are valid: an invalid reference time is
+  // already a blocking reason above, so it can never let a stale settlement pass.
+  if (Number.isInteger(input.nowMs) && input.nowMs > 0 && Number.isInteger(perpetual.nextFundingAt)) {
+    if (perpetual.nextFundingAt < input.nowMs) {
+      reasons.push(
+        `perpetual.nextFundingAt (${perpetual.nextFundingAt}) precede nowMs (${input.nowMs}): un settlement nel passato non è il prossimo pagamento.`,
+      );
+    } else if (perpetual.nextFundingAt > input.nowMs + 48 * 3600 * 1000) {
+      reasons.push("perpetual.nextFundingAt oltre 48 ore da nowMs: timestamp non plausibile per il prossimo settlement.");
+    }
   }
   if (!input.allowNegativeFunding && perpetual.fundingRate < 0) {
     reasons.push(

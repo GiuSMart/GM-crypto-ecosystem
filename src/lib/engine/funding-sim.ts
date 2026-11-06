@@ -11,7 +11,9 @@
  *   rates therefore drain the position);
  * - basis: profit when the entry basis converges towards the exit basis;
  * - costs: taker fee plus slippage, charged on each leg at entry and at exit, on each
- *   leg's own notional (never on an average that hides an unequal hedge).
+ *   leg's own notional (never on an average that hides an unequal hedge). The
+ *   perpetual margin bears only the perpetual leg's entry cost; spot costs are a
+ *   strategy cost and cannot trigger a liquidation.
  *
  * Liquidation is modelled on the perpetual margin: the position is liquidated when
  * the margin account can no longer cover the maintenance requirement. The
@@ -64,6 +66,15 @@ export type FundingCarrySimulation = {
   spotCostsQuote: number;
   /** Costs charged on the perpetual leg over entry and exit. */
   perpCostsQuote: number;
+  /** Costs paid at entry (half of each leg's round trip). */
+  entryCostsQuote: number;
+  /** Costs paid at the exit, including a liquidation close. */
+  exitCostsQuote: number;
+  /**
+   * Entry costs of the perpetual leg only. This is the sole cost the margin
+   * account bears; spot fees and slippage are a strategy cost, not a perp loss.
+   */
+  perpEntryCostsQuote: number;
   netPnlQuote: number;
   /** Net P&L as a percentage of the capital the position requires. */
   netReturnPct: number;
@@ -100,6 +111,9 @@ const emptyResult = (reasons: string[]): FundingCarrySimulation => ({
   costsQuote: 0,
   spotCostsQuote: 0,
   perpCostsQuote: 0,
+  entryCostsQuote: 0,
+  exitCostsQuote: 0,
+  perpEntryCostsQuote: 0,
   netPnlQuote: 0,
   netReturnPct: 0,
   capitalRequiredQuote: 0,
@@ -173,6 +187,11 @@ export function simulateFundingCarry(input: FundingCarrySimulationInput): Fundin
   // position is liquidated, because a close still has a cost and the real liquidation
   // fee is unknown here (understating it would overstate the result).
   const entryCostsQuote = costsQuote / 2;
+  const exitCostsQuote = costsQuote - entryCostsQuote;
+  // The margin account belongs to the perpetual leg: it bears that leg's entry
+  // cost only. Charging the spot leg here would liquidate a position that is
+  // still solvent and would understate how far the hedge can move.
+  const perpEntryCostsQuote = perpCostsQuote / 2;
 
   // Convergence on the short perpetual: profit when the basis narrows.
   const plannedBasisPnlQuote =
@@ -210,9 +229,10 @@ export function simulateFundingCarry(input: FundingCarrySimulationInput): Fundin
       equityQuote: equity,
     });
 
-    // Liquidation test on the margin account: margin + strategy P&L against the
-    // maintenance requirement the venue keeps.
-    const marginAccount = marginQuote + equity;
+    // Liquidation test on the margin account, not on the strategy P&L: funding
+    // accrues to the perp margin and only the perp leg's entry cost is charged
+    // there. Spot costs never move the liquidation price.
+    const marginAccount = marginQuote + cumulativeFunding - perpEntryCostsQuote;
     if (marginAccount <= maintenanceQuote) {
       liquidated = true;
       liquidationIndex = index;
@@ -238,6 +258,9 @@ export function simulateFundingCarry(input: FundingCarrySimulationInput): Fundin
     costsQuote,
     spotCostsQuote,
     perpCostsQuote,
+    entryCostsQuote,
+    exitCostsQuote,
+    perpEntryCostsQuote,
     netPnlQuote,
     netReturnPct: capitalRequiredQuote > 0 ? (netPnlQuote / capitalRequiredQuote) * 100 : 0,
     capitalRequiredQuote,

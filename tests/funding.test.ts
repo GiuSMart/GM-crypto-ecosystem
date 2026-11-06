@@ -228,6 +228,29 @@ test("a missing settlement time blocks planning", () => {
   assert.ok(result.reasons.some((reason) => reason.includes("nextFundingAt")));
 });
 
+test("a negative, zero or fractional reference time is refused", () => {
+  for (const nowMs of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    const result = run({ nowMs });
+    assert.equal(result.ok, false, String(nowMs));
+    assert.ok(result.reasons.some((reason) => reason.includes("nowMs")), String(nowMs));
+  }
+});
+
+test("a fractional settlement timestamp is refused", () => {
+  const result = run({ perpetual: { ...input.perpetual, nextFundingAt: NOW + 0.5 } });
+  assert.equal(result.ok, false);
+  assert.ok(result.reasons.some((reason) => reason.includes("nextFundingAt")));
+});
+
+test("an extreme reference time still rejects a settlement in its past", () => {
+  const result = run({
+    nowMs: NOW + 1_000_000_000,
+    perpetual: { ...input.perpetual, nextFundingAt: NOW },
+  });
+  assert.equal(result.ok, false);
+  assert.ok(result.reasons.some((reason) => reason.includes("precede nowMs")));
+});
+
 test("a settlement in the past or implausibly far away is refused", () => {
   const past = run({ perpetual: { ...input.perpetual, nextFundingAt: NOW - 1 } });
   assert.equal(past.ok, false);

@@ -108,6 +108,35 @@ test("liquidated runs stop at the liquidation period and are never reported as o
   // The margin account left is below the maintenance requirement, as it must be.
   const maintenance = 0.005 * 10_000;
   assert.ok(result.equityAtLiquidationQuote !== null && result.equityAtLiquidationQuote <= maintenance);
+  // Margin = perp margin + funding − the perpetual leg's entry half (7, not the
+  // 14 round trip and not the 14 charged to the whole strategy at entry).
+  close(result.perpCostsQuote, 14);
+  close(result.entryCostsQuote, 14);
+  close(result.perpEntryCostsQuote, 7);
+  close(result.equityAtLiquidationQuote ?? Number.NaN, 10_000 / 3 - 5_000 - 7);
+});
+
+test("the margin account bears the perpetual leg's costs only, never the spot leg's", () => {
+  // Unequal legs make the attribution visible: spot costs are 14, the perp round
+  // trip is 8.4, so the perp margin must lose only 4.2 on entry. Charging the spot
+  // cost there would liquidate a position that is still solvent.
+  const result = run({ perpNotionalQuote: 6_000, fundingRates: [-0.5] });
+  close(result.spotCostsQuote, 14);
+  close(result.perpCostsQuote, 8.4);
+  close(result.perpEntryCostsQuote, 4.2);
+  close(result.entryCostsQuote, (14 + 8.4) / 2);
+  close(result.exitCostsQuote, (14 + 8.4) / 2);
+  assert.equal(result.liquidated, true);
+  assert.equal(result.ok, false);
+  close(result.equityAtLiquidationQuote ?? Number.NaN, 6_000 / 3 - 3_000 - 4.2);
+  // The spot entry cost appears in the strategy P&L, not in the margin account.
+  close(result.periods[0].equityQuote, -3_000 - (14 + 8.4) / 2);
+});
+
+test("entry and exit costs together are the full round trip", () => {
+  const result = run();
+  close(result.entryCostsQuote + result.exitCostsQuote, result.costsQuote);
+  close(result.entryCostsQuote, 14);
 });
 
 test("a liquidation on a later period keeps only the periods before it", () => {

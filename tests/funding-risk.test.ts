@@ -238,6 +238,67 @@ test("a missing or invalid slippage measurement is refused and never treated as 
   }
 });
 
+test("semantic bounds are enforced before any comparison", () => {
+  const broken: Partial<DeltaNeutralRiskInput>[] = [
+    { fundingRate: 2 },
+    { fundingRate: -2 },
+    { expectedSlippagePct: 101 },
+    { liquidationBufferPct: 101 },
+    { liquidationBufferPct: -100 },
+    { minLiquidationBufferPct: -1 },
+    { minLiquidationBufferPct: 101 },
+    { dataAgeMs: 25 * 3600 * 1000 },
+    { spotNotionalQuote: 1_000_000_000_001 },
+  ];
+  for (const override of broken) {
+    const result = run(override);
+    assert.equal(result.approved, false, JSON.stringify(override));
+    // Out-of-range slippage keeps its precise code; everything else is INPUT_INVALID.
+    assert.ok(
+      codes(result).includes("INPUT_INVALID") || codes(result).includes("SLIPPAGE_INVALID"),
+      JSON.stringify(codes(result)),
+    );
+  }
+});
+
+test("a corrupt portfolio or policy blocks without throwing", () => {
+  const cases: Partial<DeltaNeutralRiskInput>[] = [
+    { portfolio: { ...portfolio, venueExposureQuote: undefined } as unknown as PortfolioState },
+    { portfolio: { ...portfolio, equityQuote: Number.NaN } },
+    { portfolio: { ...portfolio, emergencyStop: "no" } as unknown as PortfolioState },
+    { portfolio: { ...portfolio, strategyExposureQuote: "x" } as unknown as PortfolioState },
+    { policy: { ...policy, allowedVenues: "okx" } as unknown as RiskPolicy },
+    { policy: { ...policy, maxOrderQuote: Number.POSITIVE_INFINITY } },
+  ];
+  for (const override of cases) {
+    let result!: ReturnType<typeof run>;
+    assert.doesNotThrow(() => {
+      result = run(override);
+    }, JSON.stringify(override));
+    assert.equal(result.approved, false);
+    assert.equal(result.verdict.approved, false);
+    assert.ok(
+      result.fundingViolations.some((violation) => violation.code === "INPUT_INVALID"),
+      JSON.stringify(result.fundingViolations),
+    );
+  }
+});
+
+test("a portfolio that throws when read becomes a blocking verdict", () => {
+  const hostile = new Proxy({ ...portfolio }, {
+    get: () => {
+      throw new Error("stato corrotto");
+    },
+  }) as PortfolioState;
+  let result!: ReturnType<typeof run>;
+  assert.doesNotThrow(() => {
+    result = run({ portfolio: hostile });
+  });
+  assert.equal(result.approved, false);
+  assert.equal(result.verdict.approved, false);
+  assert.ok(result.fundingViolations.some((violation) => violation.code === "INPUT_INVALID"));
+});
+
 test("the measured slippage reaches the Risk Guard instead of a zero default", () => {
   // The policy tolerates 0.6%: a measured 0.25% passes, a measured 0.7% is refused by
   // the guard's slippage check rather than by this module's funding rules.
