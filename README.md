@@ -53,7 +53,7 @@ GM_WORKER_ENABLED=true npm run worker # worker server continuo (una sola istanza
 ## Cosa funziona davvero
 
 - **Dati di mercato reali**: ticker e order book pubblici di Kraken (`api.kraken.com`), Coinbase Exchange (`api.exchange.coinbase.com`) e Bybit V5 Spot (host EEA predefinito `api.bybit.eu`), senza credenziali. Bybit è solo market-data: commissioni non configurate, quindi i segnali che la coinvolgono richiedono una fee confermata dall'utente. L'idoneità regionale EEA va verificata prima dell'uso in produzione.
-- **Motore di arbitraggio**: VWAP di profondità su entrambe le gambe, fee taker, buffer, costi di trasferimento, controllo di staleness, sizing ottimale su più taglie. 19 test automatici coprono i casi critici, inclusa la contabilizzazione della fee di trasferimento senza doppio conteggio.
+- **Motore di arbitraggio**: VWAP di profondità su entrambe le gambe, fee taker, buffer, costi di trasferimento, controllo di staleness, sizing ottimale su più taglie. 32 test automatici (15 sul motore) coprono i casi critici, inclusa la contabilizzazione della fee di trasferimento senza doppio conteggio.
 - **Paper trading**: apertura solo su segnali eseguibili, chiusura marcata al book live, confronto atteso/realizzato. La fee di prelievo è già incorporata nella quantità netta all'apertura e non viene sottratta una seconda volta alla chiusura.
 - **Multi-tenant**: account, piani (FREE/PRO/PREMIUM con limiti applicati su scansioni e API key), branding per utente e globale.
 - **Affiliate Center**: 7 referral gestiti da database, modificabili dall'admin senza deploy.
@@ -80,6 +80,18 @@ GM_WORKER_ENABLED=true npm run worker # worker server continuo (una sola istanza
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — livelli, modello dati, sicurezza, scala, migrazione Postgres
 - [`docs/PHASES.md`](docs/PHASES.md) — stato reale fase per fase, con costi e limiti
 - [`docs/API.md`](docs/API.md) — endpoint interni e payload
+
+## Competenze degli agenti AI
+
+- [docs/AGENT_SKILLS.md](docs/AGENT_SKILLS.md) — skills locali e installazione delle Vercel Agent Skills
+- [docs/FREEBUFF_HANDOFF.md](docs/FREEBUFF_HANDOFF.md) — istruzioni operative per Freebuff e revisione della PR #20
+- [AGENTS.md](AGENTS.md) — regole di progetto per gli agenti AI
+
+## Agent platform e sviluppo assistito
+
+- [docs/GM_AGENT_PLATFORM.md](docs/GM_AGENT_PLATFORM.md) — architettura target per GM MASTER AI, agenti specialistici, orchestrazione e controlli.
+- [docs/SKILLS_GOVERNANCE.md](docs/SKILLS_GOVERNANCE.md) — governance delle Skills, API skills.sh, audit, hash e approvazioni.
+- [docs/GM_FREEBUFF_EXECUTION_BACKLOG.md](docs/GM_FREEBUFF_EXECUTION_BACKLOG.md) — sequenza di lavoro e criteri di accettazione per Freebuff.
 
 ## Licenze delle dipendenze
 
