@@ -42,6 +42,21 @@ test("the round trip is charged on both legs, twice", () => {
   close(result.netPnlQuote, 3 - 28);
 });
 
+test("costs are attributed to each leg on its own notional, not on an average", () => {
+  const equal = run();
+  close(equal.spotCostsQuote, 14);
+  close(equal.perpCostsQuote, 14);
+  close(equal.spotCostsQuote + equal.perpCostsQuote, equal.costsQuote);
+
+  // A hedge whose legs are not equal is charged per leg: the small perpetual leg pays
+  // less than the spot leg, and the total is the sum of the two, not an averaged bill.
+  const unequal = run({ perpNotionalQuote: 6_000 });
+  close(unequal.spotCostsQuote, 2 * 1 * 0.0007 * 10_000);
+  close(unequal.perpCostsQuote, 2 * 1 * 0.0007 * 6_000);
+  close(unequal.costsQuote, 14 + 8.4);
+  close(unequal.capitalRequiredQuote, 10_000 + 6_000 / 3);
+});
+
 test("required capital includes the perpetual margin, so returns are not overstated", () => {
   const result = run();
   assert.ok(Math.abs(result.capitalRequiredQuote - (10_000 + 10_000 / 3)) < 1e-9);
@@ -72,19 +87,48 @@ test("the liquidation buffer is the margin buffer on the perpetual leg", () => {
   const result = run();
   assert.ok(Math.abs(result.liquidationBufferQuote - (1 / 3 - 0.005) * 10_000) < 1e-9);
   assert.equal(result.liquidated, false);
+  assert.equal(result.liquidationIndex, null);
+  assert.equal(result.periods.length, 3);
 });
 
-test("a loss larger than the margin buffer marks the position liquidated", () => {
+test("liquidated runs stop at the liquidation period and are never reported as ok", () => {
+  // Equity is charged from the first interval: a -50% funding rate wipes the margin
+  // buffer of a 3x position immediately, so periods 2 and 3 must not exist.
   const result = run({ fundingRates: [-0.5, -0.5, -0.5] });
   assert.equal(result.liquidated, true);
+  assert.equal(result.ok, false);
+  assert.equal(result.liquidationIndex, 0);
+  assert.equal(result.liquidationDay, 1 / 3);
+  assert.equal(result.periods.length, 1);
+  assert.equal(result.totalFundingQuote, -5_000);
+  // The unrealized basis is not paid out after a liquidation.
+  close(result.basisPnlQuote, 0);
+  assert.equal(result.netPnlQuote, -5_000 - result.costsQuote);
+  assert.ok(result.reasons.some((reason) => reason.includes("liquidata")));
+  // The margin account left is below the maintenance requirement, as it must be.
+  const maintenance = 0.005 * 10_000;
+  assert.ok(result.equityAtLiquidationQuote !== null && result.equityAtLiquidationQuote <= maintenance);
+});
+
+test("a liquidation on a later period keeps only the periods before it", () => {
+  const result = run({ fundingRates: [0.001, 0.001, -3, 0.001] });
+  assert.equal(result.liquidated, true);
+  assert.equal(result.liquidationIndex, 2);
+  assert.equal(result.periods.length, 3);
+  assert.equal(result.periods[2].index, 2);
+});
+
+test("the model states the limitation it cannot simulate", () => {
+  const result = run();
+  assert.ok(result.limitations.some((limitation) => limitation.includes("basis")));
 });
 
 test("max drawdown includes the entry costs, not just the funding swings", () => {
   const result = run();
-  // Equity starts from zero, so the trough after the first period is the cost minus
-  // the first funding payment: the drawdown is 27, not the full 28 quote charged.
-  close(result.maxDrawdownQuote, 27);
-  close(result.worstPeriodQuote, 1 - 28);
+  // The curve charges the entry half of the round trip up front: 14 quote. After the
+  // first payment the curve is 1 - 14, so the trough (and the drawdown from zero) is 13.
+  close(result.maxDrawdownQuote, 13);
+  close(result.worstPeriodQuote, 1 - 14);
 });
 
 test("an empty funding series is refused instead of reporting zero", () => {
@@ -99,10 +143,16 @@ test("a non-finite rate is refused", () => {
   assert.ok(result.reasons.some((reason) => reason.includes("non finiti")));
 });
 
-test("an empty leg or zero leverage is refused", () => {
+test("an empty leg, zero leverage or an impossible maintenance margin is refused", () => {
   assert.equal(run({ spotNotionalQuote: 0 }).ok, false);
   assert.equal(run({ perpNotionalQuote: -1 }).ok, false);
   assert.equal(run({ leverage: 0 }).ok, false);
+  assert.equal(run({ maintenanceMarginPct: 100 }).ok, false);
+});
+
+test("fractional intervals or legs are refused", () => {
+  assert.equal(run({ intervalsPerDay: 2.5 }).ok, false);
+  assert.equal(run({ legsPerSide: 1.5 }).ok, false);
 });
 
 test("the simulation is deterministic: the same inputs produce the same curve", () => {

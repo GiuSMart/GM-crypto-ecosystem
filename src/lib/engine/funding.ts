@@ -67,14 +67,60 @@ export function basisPct(spotPrice: number, markPrice: number): number | null {
   return ((markPrice - spotPrice) / spotPrice) * 100;
 }
 
-/** `null` for an empty history: an absent history is not a stable one. */
+export type FundingHistoryValidation =
+  | { ok: true; stats: FundingHistoryStats }
+  | { ok: false; reasons: string[] };
+
+/**
+ * Validate a funding history before computing anything.
+ *
+ * A malformed observation is a broken feed, not a missing data point: dropping it and
+ * describing the remainder would make a corrupted series look stable. Any invalid
+ * entry therefore rejects the whole history, and duplicates are refused because two
+ * settlements cannot share a timestamp.
+ */
+export function validateFundingHistory(observations: FundingObservation[]): FundingHistoryValidation {
+  if (!Array.isArray(observations)) {
+    return { ok: false, reasons: ["La serie di funding deve essere un array di osservazioni."] };
+  }
+  if (observations.length === 0) {
+    return { ok: false, reasons: ["Serie di funding vuota: una storia assente non è una storia stabile."] };
+  }
+
+  const reasons: string[] = [];
+  const seen = new Set<number>();
+  observations.forEach((observation, index) => {
+    if (observation === null || typeof observation !== "object" || Array.isArray(observation)) {
+      reasons.push(`Osservazione ${index} non è un oggetto.`);
+      return;
+    }
+    if (!finite(observation.rate)) {
+      reasons.push(`Osservazione ${index}: rate non finito.`);
+    }
+    if (!finite(observation.at) || !Number.isInteger(observation.at) || observation.at <= 0) {
+      reasons.push(`Osservazione ${index}: timestamp di settlement non valido.`);
+    } else if (seen.has(observation.at)) {
+      reasons.push(`Osservazione ${index}: timestamp di settlement duplicato (${observation.at}).`);
+    } else {
+      seen.add(observation.at);
+    }
+  });
+
+  if (reasons.length > 0) return { ok: false, reasons };
+
+  return { ok: true, stats: computeFundingHistoryStats(observations) };
+}
+
+/** `null` for an empty or unusable history: it is never silently reduced to a subset. */
 export function fundingHistoryStats(observations: FundingObservation[]): FundingHistoryStats | null {
+  const validation = validateFundingHistory(observations);
+  return validation.ok ? validation.stats : null;
+}
+
+function computeFundingHistoryStats(observations: FundingObservation[]): FundingHistoryStats {
   const rates = observations
-    .filter((observation) => finite(observation.rate) && finite(observation.at))
     .map((observation) => observation.rate)
     .sort((a, b) => a - b);
-
-  if (rates.length === 0) return null;
 
   const count = rates.length;
   const meanRate = rates.reduce((sum, rate) => sum + rate, 0) / count;
@@ -85,9 +131,7 @@ export function fundingHistoryStats(observations: FundingObservation[]): Funding
   const stdevRate = Math.sqrt(variance);
   const positiveShare = rates.filter((rate) => rate > 0).length / count;
 
-  const ordered = observations
-    .filter((observation) => finite(observation.rate) && finite(observation.at))
-    .sort((a, b) => a.at - b.at);
+  const ordered = [...observations].sort((a, b) => a.at - b.at);
   let signFlips = 0;
   for (let index = 1; index < ordered.length; index += 1) {
     const previous = Math.sign(ordered[index - 1].rate);
@@ -124,6 +168,8 @@ export type FundingOpportunityInput = {
     nextFundingAt: number;
     dataAgeMs: number;
   };
+  /** Explicit reference time, epoch milliseconds: settlement times are checked against it. */
+  nowMs: number;
   /** Horizon the net result is computed over, then annualised from. */
   holdingDays: number;
   intervalsPerDay: number;
@@ -171,6 +217,7 @@ export function evaluateFundingOpportunity(input: FundingOpportunityInput): Fund
     ["spot.dataAgeMs", spot.dataAgeMs],
     ["perpetual.markPrice", perpetual.markPrice],
     ["perpetual.indexPrice", perpetual.indexPrice],
+    ["nowMs", input.nowMs],
     ["perpetual.fundingRate", perpetual.fundingRate],
     ["perpetual.nextFundingAt", perpetual.nextFundingAt],
     ["perpetual.dataAgeMs", perpetual.dataAgeMs],
@@ -202,12 +249,29 @@ export function evaluateFundingOpportunity(input: FundingOpportunityInput): Fund
     };
   }
 
+  if (typeof input.venueId !== "string" || input.venueId.trim() === "") {
+    reasons.push("venueId mancante: un'opportunità senza venue non è attribuibile né verificabile.");
+  }
+  if (typeof input.instrumentId !== "string" || input.instrumentId.trim() === "") {
+    reasons.push("instrumentId mancante: lo strumento deve essere identificato esplicitamente.");
+  }
+  if (typeof input.allowNegativeFunding !== "boolean") {
+    reasons.push("allowNegativeFunding deve essere esplicito (true/false).");
+  }
   if (spot.price <= 0) reasons.push("spot.price deve essere maggiore di zero.");
   if (perpetual.markPrice <= 0) reasons.push("perpetual.markPrice deve essere maggiore di zero.");
+  if (perpetual.indexPrice <= 0) {
+    reasons.push("perpetual.indexPrice deve essere maggiore di zero: senza indice il basis non è verificabile.");
+  }
   if (input.holdingDays <= 0) reasons.push("holdingDays deve essere maggiore di zero.");
-  if (input.intervalsPerDay <= 0) reasons.push("intervalsPerDay deve essere maggiore di zero.");
-  if (input.legsPerSide <= 0) reasons.push("legsPerSide deve essere maggiore di zero.");
+  if (input.intervalsPerDay <= 0 || !Number.isInteger(input.intervalsPerDay)) {
+    reasons.push("intervalsPerDay deve essere un intero maggiore di zero.");
+  }
+  if (input.legsPerSide <= 0 || !Number.isInteger(input.legsPerSide)) {
+    reasons.push("legsPerSide deve essere un intero maggiore di zero.");
+  }
   if (input.leverage <= 0) reasons.push("leverage deve essere maggiore di zero.");
+  if (input.maxDataAgeMs <= 0) reasons.push("maxDataAgeMs deve essere maggiore di zero.");
   if (input.feePctPerLeg < 0 || input.slippagePctPerLeg < 0) {
     reasons.push("I costi per gamba non possono essere negativi.");
   }
@@ -221,6 +285,12 @@ export function evaluateFundingOpportunity(input: FundingOpportunityInput): Fund
   }
   if (perpetual.nextFundingAt <= 0) {
     reasons.push("perpetual.nextFundingAt mancante: senza orario di settlement il carry non è pianificabile.");
+  } else if (input.nowMs > 0 && perpetual.nextFundingAt < input.nowMs) {
+    reasons.push(
+      `perpetual.nextFundingAt (${perpetual.nextFundingAt}) precede nowMs (${input.nowMs}): un settlement nel passato non è il prossimo pagamento.`,
+    );
+  } else if (perpetual.nextFundingAt > input.nowMs + 48 * 3600 * 1000) {
+    reasons.push("perpetual.nextFundingAt oltre 48 ore da nowMs: timestamp non plausibile per il prossimo settlement.");
   }
   if (!input.allowNegativeFunding && perpetual.fundingRate < 0) {
     reasons.push(

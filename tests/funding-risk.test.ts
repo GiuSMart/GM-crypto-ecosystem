@@ -37,6 +37,8 @@ const input: DeltaNeutralRiskInput = {
   maxImbalancePct: 1,
   allowNegativeFunding: false,
   dataAgeMs: 1000,
+  // Measured depth-weighted slippage, never defaulted to zero.
+  expectedSlippagePct: 0.1,
   feeVerified: true,
   liquidityComplete: true,
   portfolio,
@@ -155,4 +157,95 @@ test("several independent problems are all reported, not just the first", () => 
     "LIQUIDATION_BUFFER",
     "NEGATIVE_FUNDING",
   ]);
+});
+
+/* -------------------------------------------------------------------------- */
+/* Runtime validation: TypeScript does not protect DB or API input            */
+/* -------------------------------------------------------------------------- */
+
+test("NaN or Infinity in any numeric input blocks instead of skipping its limit", () => {
+  const broken: Partial<DeltaNeutralRiskInput>[] = [
+    { fundingRate: Number.NaN },
+    { fundingRate: Number.POSITIVE_INFINITY },
+    { maxImbalancePct: Number.NaN },
+    { maxImbalancePct: -1 },
+    { maxImbalancePct: 120 },
+    { minLiquidationBufferPct: Number.NaN },
+    { minLiquidationBufferPct: -5 },
+    { dataAgeMs: Number.NaN },
+    { dataAgeMs: -1 },
+  ];
+  for (const override of broken) {
+    const result = run(override);
+    assert.equal(result.approved, false, JSON.stringify(override));
+    assert.ok(codes(result).includes("INPUT_INVALID"), JSON.stringify(codes(result)));
+  }
+});
+
+test("non-boolean flags and an unknown context block instead of falling through", () => {
+  const broken = [
+    { allowNegativeFunding: "no" },
+    { feeVerified: "yes" },
+    { liquidityComplete: 1 },
+    { context: "lve" },
+  ] as unknown as Partial<DeltaNeutralRiskInput>[];
+  for (const override of broken) {
+    const result = run(override);
+    assert.equal(result.approved, false, JSON.stringify(override));
+    assert.ok(codes(result).includes("INPUT_INVALID"), JSON.stringify(codes(result)));
+  }
+});
+
+test("missing identifiers block the evaluation", () => {
+  for (const override of [{ venueId: "" }, { pair: "   " }] as Partial<DeltaNeutralRiskInput>[]) {
+    const result = run(override);
+    assert.equal(result.approved, false);
+    assert.ok(codes(result).includes("INPUT_INVALID"));
+  }
+});
+
+test("a missing portfolio or policy returns a blocking verdict instead of throwing", () => {
+  const noPortfolio = run({ portfolio: null as unknown as PortfolioState });
+  assert.equal(noPortfolio.approved, false);
+  assert.equal(noPortfolio.verdict.approved, false);
+  assert.ok(noPortfolio.verdict.violations.some((violation) => violation.code === "DATA_INCOMPLETE"));
+
+  const noPolicy = run({ policy: undefined as unknown as RiskPolicy });
+  assert.equal(noPolicy.approved, false);
+  assert.equal(noPolicy.verdict.approved, false);
+});
+
+test("a missing or invalid slippage measurement is refused and never treated as zero", () => {
+  const broken = [
+    Number.NaN,
+    -0.1,
+    undefined as unknown as number,
+    "0.1" as unknown as number,
+  ];
+  for (const expectedSlippagePct of broken) {
+    const result = run({ expectedSlippagePct });
+    assert.equal(result.approved, false, String(expectedSlippagePct));
+    assert.ok(codes(result).includes("SLIPPAGE_INVALID"), JSON.stringify(codes(result)));
+    // The guard receives Infinity, so it blocks as well: DATA_INCOMPLETE for the
+    // non-finite value, SLIPPAGE_LIMIT once the value is finite but above the policy.
+    assert.equal(result.verdict.approved, false);
+    assert.ok(
+      result.verdict.violations.some(
+        (violation) => violation.code === "SLIPPAGE_LIMIT" || violation.code === "DATA_INCOMPLETE",
+      ),
+      JSON.stringify(result.verdict.violations.map((violation) => violation.code)),
+    );
+  }
+});
+
+test("the measured slippage reaches the Risk Guard instead of a zero default", () => {
+  // The policy tolerates 0.6%: a measured 0.25% passes, a measured 0.7% is refused by
+  // the guard's slippage check rather than by this module's funding rules.
+  assert.equal(run({ expectedSlippagePct: 0.25 }).approved, true);
+  assert.equal(run({ expectedSlippagePct: 0.6 }).approved, true);
+
+  const tooHigh = run({ expectedSlippagePct: 0.7 });
+  assert.equal(tooHigh.approved, false);
+  assert.ok(!codes(tooHigh).includes("SLIPPAGE_INVALID"));
+  assert.ok(tooHigh.verdict.violations.some((violation) => violation.code === "SLIPPAGE_LIMIT"));
 });

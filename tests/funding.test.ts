@@ -5,6 +5,7 @@ import {
   basisPct,
   evaluateFundingOpportunity,
   fundingHistoryStats,
+  validateFundingHistory,
   type FundingObservation,
   type FundingOpportunityInput,
 } from "../src/lib/engine/funding";
@@ -27,6 +28,7 @@ const input: FundingOpportunityInput = {
     nextFundingAt: NOW + 8 * 3600 * 1000,
     dataAgeMs: 1000,
   },
+  nowMs: NOW,
   holdingDays: 30,
   intervalsPerDay: 3,
   feePctPerLeg: 0.05,
@@ -98,13 +100,36 @@ test("a history that changes sign loses persistence and counts the flips", () =>
   assert.ok(stats.persistenceScore < 100);
 });
 
-test("non-finite observations are dropped from the statistics", () => {
-  const stats = fundingHistoryStats([
-    { rate: Number.NaN, at: NOW },
+test("a corrupt history is refused as a whole, never reduced to its valid subset", () => {
+  const corrupt: unknown[] = [
+    [{ rate: Number.NaN, at: NOW }, { rate: 0.0001, at: NOW + 1 }],
+    [{ rate: 0.0001, at: NOW }, { rate: 0.0001, at: Number.NaN }],
+    [{ rate: 0.0001, at: NOW }, { rate: 0.0001, at: -1 }],
+    [{ rate: 0.0001, at: NOW }, { rate: 0.0001, at: NOW + 0.5 }],
+    [{ rate: 0.0001, at: NOW }, { rate: 0.0001, at: NOW }],
+    [{ rate: 0.0001, at: NOW }, null],
+    [undefined],
+  ];
+  for (const observations of corrupt) {
+    const validation = validateFundingHistory(observations as FundingObservation[]);
+    assert.equal(validation.ok, false, JSON.stringify(observations));
+    assert.ok(validation.ok === false && validation.reasons.length > 0);
+    assert.equal(fundingHistoryStats(observations as FundingObservation[]), null);
+    assert.equal(
+      validateFundingHistory(observations as FundingObservation[]).ok,
+      false,
+      "una serie corrotta non deve poter diventare stabile",
+    );
+  }
+});
+
+test("a valid history is accepted even when its observations are not sorted", () => {
+  const validation = validateFundingHistory([
     { rate: 0.0001, at: NOW + 1 },
+    { rate: 0.0002, at: NOW },
   ]);
-  assert.ok(stats);
-  assert.equal(stats.count, 1);
+  assert.equal(validation.ok, true);
+  assert.ok(validation.ok === true && validation.stats.count === 2);
 });
 
 test("an even number of observations uses the mean of the two central rates", () => {
@@ -183,6 +208,14 @@ test("unusable prices are refused", () => {
   assert.equal(run({ perpetual: { ...input.perpetual, markPrice: -1 } }).ok, false);
 });
 
+test("a non-finite or non-positive index price blocks the basis check", () => {
+  for (const indexPrice of [0, -1, Number.NaN]) {
+    const result = run({ perpetual: { ...input.perpetual, indexPrice } });
+    assert.equal(result.ok, false, String(indexPrice));
+    assert.ok(result.reasons.some((reason) => reason.includes("indexPrice")));
+  }
+});
+
 test("non-finite inputs are refused with the offending field named", () => {
   const result = run({ perpetual: { ...input.perpetual, fundingRate: Number.NaN } });
   assert.equal(result.ok, false);
@@ -193,6 +226,40 @@ test("a missing settlement time blocks planning", () => {
   const result = run({ perpetual: { ...input.perpetual, nextFundingAt: 0 } });
   assert.equal(result.ok, false);
   assert.ok(result.reasons.some((reason) => reason.includes("nextFundingAt")));
+});
+
+test("a settlement in the past or implausibly far away is refused", () => {
+  const past = run({ perpetual: { ...input.perpetual, nextFundingAt: NOW - 1 } });
+  assert.equal(past.ok, false);
+  assert.ok(past.reasons.some((reason) => reason.includes("precede nowMs")));
+
+  const far = run({ perpetual: { ...input.perpetual, nextFundingAt: NOW + 49 * 3600 * 1000 } });
+  assert.equal(far.ok, false);
+  assert.ok(far.reasons.some((reason) => reason.includes("oltre 48 ore")));
+
+  // Without an explicit reference time, the comparison cannot be made at all.
+  const noReference = run({ nowMs: Number.NaN });
+  assert.equal(noReference.ok, false);
+  assert.ok(noReference.reasons.some((reason) => reason.includes("nowMs")));
+});
+
+test("missing identifiers are refused instead of producing an anonymous signal", () => {
+  for (const override of [{ venueId: "" }, { venueId: "   " }, { instrumentId: "" }]) {
+    const result = run(override as Partial<FundingOpportunityInput>);
+    assert.equal(result.ok, false, JSON.stringify(override));
+    assert.ok(result.reasons.some((reason) => reason.includes("mancante")));
+  }
+});
+
+test("fractional intervals or legs are refused", () => {
+  assert.equal(run({ intervalsPerDay: 2.5 }).ok, false);
+  assert.equal(run({ legsPerSide: 1.5 }).ok, false);
+});
+
+test("a non-boolean funding direction flag is refused", () => {
+  const result = run({ allowNegativeFunding: "false" as unknown as boolean });
+  assert.equal(result.ok, false);
+  assert.ok(result.reasons.some((reason) => reason.includes("allowNegativeFunding")));
 });
 
 test("the net result is annualised from the stated horizon, not assumed", () => {
