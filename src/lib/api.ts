@@ -38,6 +38,12 @@ export async function guardedMutation(
   const user = await currentUser();
   if (opts.requireUser !== false && !user) return { user: null, error: jsonError("Autenticazione richiesta.", 401) };
   if (opts.adminOnly && user?.role !== "admin") return { user, error: jsonError("Permesso negato.", 403) };
+  // A bootstrap password only opens the app; every mutation waits until it has
+  // actually been rotated. /api/auth/password does not use this helper, so
+  // rotation is always possible.
+  if (user?.mustChangePassword) {
+    return { user, error: jsonError("Cambia la password iniziale prima di modificare i dati.", 403) };
+  }
   if (crossSite(req)) return { user, error: jsonError("Richiesta cross-site bloccata.", 403) };
 
   const { ip } = await clientMeta();

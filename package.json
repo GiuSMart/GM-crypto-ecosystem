@@ -12,6 +12,7 @@
     "start": "next start -p 3000",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
+    "test:api": "node --import tsx --test tests/api/*.test.ts",
     "scan": "tsx scripts/scan.ts",
     "db:info": "tsx scripts/db-info.ts",
     "worker": "tsx scripts/worker.ts"

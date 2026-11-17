@@ -2,7 +2,8 @@ name: GM Crypto CI
 
 on:
   push:
-    branches: [main, "feature/**", "chore/**"]
+    # fix/** is included so a fix branch gets CI before its pull request exists.
+    branches: [main, "feature/**", "chore/**", "fix/**"]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -32,3 +33,6 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      # Needs the production build, so it runs after it.
+      - name: Bootstrap password gate (end-to-end)
+        run: npm run test:api

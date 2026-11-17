@@ -34,7 +34,7 @@ Al primo avvio vengono creati automaticamente:
 Nel repository **non è contenuta nessuna password**. Al primo avvio:
 
 - se `GM_ADMIN_PASSWORD` / `GM_DEMO_PASSWORD` sono impostate, vengono usate;
-- altrimenti il server genera una password casuale, la stampa **una sola volta** nel log di avvio e obbliga il cambio password al primo login.
+- altrimenti il server genera una password casuale, la salva **una sola volta** in `data/initial-credentials.txt` (permessi 0600) e obbliga il cambio password al primo accesso; il valore non viene mai scritto nei log.
 
 Email degli account creati: `admin@gmarbitrage.ai` (ruolo admin) e `cliente@demo.it` (cliente demo). L'email admin è sovrascrivibile con `GM_ADMIN_EMAIL`.
 
