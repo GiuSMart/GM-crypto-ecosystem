@@ -324,11 +324,38 @@ export const PLANS = [
   },
 ] as const;
 
-/** Referral catalogue. Links are exactly the ones supplied by the owner. */
+/**
+ * Ordered catalogue of referral categories used by the Affiliate Center.
+ *
+ * The order of this array IS the display order: offers are grouped by category,
+ * then sorted by platform inside each group. Add a new category here before
+ * saving an offer that needs it — the admin API only accepts these values, so
+ * the page can never fall into an unsorted pile of free-text labels.
+ */
+export const REFERRAL_CATEGORIES = [
+  "Finanza / Conto personale",
+  "Finanza / Exchange",
+  "Finanza / Pagamenti e voucher",
+  "Wallet / Conto personale",
+  "Business / Conto aziendale",
+  "Digitale / Strumenti",
+] as const;
+
+/** Bucket used for rows created before categories existed (or with none set). */
+export const REFERRAL_UNCLASSIFIED = "Altro / Non classificato";
+
+/**
+ * Baseline referral catalogue seeded on first boot (INSERT OR IGNORE only, so a
+ * running database is never overwritten). Links supplied by the owner are NOT
+ * hard-coded here: they are added at runtime from the admin panel, which is what
+ * lets the Affiliate Center grow without a redeploy. New baseline entries still
+ * need a category from REFERRAL_CATEGORIES so the page can order them.
+ */
 export const REFERRALS = [
   {
     id: "phantom",
     platform: "Phantom",
+    category: "Wallet / Conto personale",
     name: "Phantom Wallet",
     url: "https://phantom.com/r/OmegaGold",
     tagline: "Wallet self-custody Solana / EVM / Bitcoin",
@@ -351,6 +378,7 @@ export const REFERRALS = [
   {
     id: "wirex",
     platform: "Wirex",
+    category: "Finanza / Conto personale",
     name: "Wirex",
     url: "https://wirex.onelink.me/gi8H/referral?deep_link_sub1=referral_code:0x780D97Eabebb3934eBA4bb21E31eCD311a5bA590",
     tagline: "Conto crypto + carta",
@@ -373,6 +401,7 @@ export const REFERRALS = [
   {
     id: "speed",
     platform: "Speed",
+    category: "Finanza / Pagamenti e voucher",
     name: "Speed",
     url: "https://links.speed.app/referral?referral_code=LZCSNA",
     tagline: "Wallet + pagamenti Lightning",
@@ -395,6 +424,7 @@ export const REFERRALS = [
   {
     id: "kraken",
     platform: "Kraken",
+    category: "Finanza / Exchange",
     name: "Kraken Pro",
     url: "https://invite.kraken.com/JDNW/b0zu2lzt",
     tagline: "Exchange con API pubblica e privata",
@@ -417,6 +447,7 @@ export const REFERRALS = [
   {
     id: "coinbase",
     platform: "Coinbase",
+    category: "Finanza / Exchange",
     name: "Coinbase Advanced",
     url: "https://coinbase.com/join/UNHURJ3?src=android-link",
     tagline: "Exchange con API Advanced Trade",
@@ -439,6 +470,7 @@ export const REFERRALS = [
   {
     id: "crypto-voucher",
     platform: "Crypto Voucher",
+    category: "Finanza / Pagamenti e voucher",
     name: "Crypto Voucher",
     url: "https://cryptovoucher.io?refm=ltcstaking",
     tagline: "Voucher crypto prepagati",
@@ -461,6 +493,7 @@ export const REFERRALS = [
   {
     id: "freebuff",
     platform: "Freebuff",
+    category: "Digitale / Strumenti",
     name: "Freebuff",
     url: "https://freebuff.com/?ref=ref-0c66b73f-1c56-4497-b17a-b80ad4a84934",
     tagline: "Ambiente di sviluppo AI (strumento interno)",

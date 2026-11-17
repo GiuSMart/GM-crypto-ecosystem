@@ -2,11 +2,26 @@ import { guardedMutation, jsonError, jsonOk, numberFrom } from "@/lib/api";
 import { audit } from "@/lib/audit";
 import { clientMeta } from "@/lib/auth";
 import { newId } from "@/lib/crypto";
-import { run } from "@/lib/db";
+import { all, one, run } from "@/lib/db";
+import { findDuplicateReferral, mergeReferralInput, type ExistingReferral } from "@/lib/referrals";
 import { grantLiveAuthorization, revokeLiveAuthorization } from "@/lib/live";
 import { setUserPlan, updatePlanPricing } from "@/lib/plans";
 
 export const runtime = "nodejs";
+
+/**
+ * Read model for the transfer scripts: the catalogue as stored, ids and flags
+ * included. Verification cannot use the public page alone, because a disabled
+ * offer is absent from it by design and would look like a failed import.
+ */
+export async function GET(req: Request) {
+  const { user, error } = await guardedMutation(req, { limit: 60, windowMs: 60_000, adminOnly: true });
+  if (error || !user) return error ?? jsonError("Permesso negato.", 403);
+  const referrals = all(
+    "SELECT id, platform, name, url, category, active, verified, affiliate_confirmed, sort, updated_at FROM referrals ORDER BY sort ASC, name ASC",
+  );
+  return jsonOk({ referrals }, { headers: { "Cache-Control": "no-store" } });
+}
 
 export async function POST(req: Request) {
   const { user, error } = await guardedMutation(req, { limit: 30, windowMs: 60_000, adminOnly: true });
@@ -80,39 +95,57 @@ export async function POST(req: Request) {
       }
 
       case "upsert_referral": {
-        const id = body.id ? String(body.id) : newId("ref");
-        const platform = String(body.platform ?? "").slice(0, 60);
-        const name = String(body.name ?? "").slice(0, 80);
-        const url = String(body.url ?? "");
-        if (!platform || !name || !/^https:\/\//i.test(url)) return jsonError("Piattaforma, nome e URL https sono obbligatori.");
-        const tutorial = Array.isArray(body.tutorial) ? (body.tutorial as unknown[]).map((t) => String(t).slice(0, 300)) : [];
+        // Trimmed before the lookup: a whitespace-only id is truthy but matches no
+        // stored row, so it used to create a referral with a blank primary key.
+        const wantedId = typeof body.id === "string" ? body.id.trim() : "";
+        const id = wantedId || newId("ref");
+        // The upsert replaces every column, so the stored row is read first and the
+        // request only overrides what it mentions: a partial update must never
+        // clear verification flags or re-enable an offer that was switched off.
+        const existing = one<ExistingReferral>("SELECT * FROM referrals WHERE id = ?", id);
+        const merged = mergeReferralInput(body, existing);
+        if (!merged.ok) return jsonError(merged.error);
+        const row = merged.row;
+
+        // A link already in the catalogue is never duplicated and never overwritten.
+        // Compared on the normalised form: an equivalent URL written differently
+        // must still be caught. Skipped when the update leaves the stored link as is.
+        if (merged.urlChanged) {
+          const duplicate = findDuplicateReferral(all<{ id: string; name: string; url: string }>("SELECT id, name, url FROM referrals"), id, row.url);
+          if (duplicate) {
+            return jsonError(`Link già presente in questo Affiliate Center: « ${duplicate.name} ». Nessuna voce esistente è stata modificata.`);
+          }
+        }
+
         run(
-          `INSERT INTO referrals(id, platform, name, url, tagline, description, how_it_works, tutorial, terms, rewards, verified, affiliate_confirmed, accent, active, sort, updated_at)
-           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          `INSERT INTO referrals(id, platform, name, url, category, tagline, description, how_it_works, tutorial, terms, rewards, verified, affiliate_confirmed, accent, active, sort, updated_at)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
            ON CONFLICT(id) DO UPDATE SET
-             platform = excluded.platform, name = excluded.name, url = excluded.url, tagline = excluded.tagline,
+             platform = excluded.platform, name = excluded.name, url = excluded.url, category = excluded.category,
+             tagline = excluded.tagline,
              description = excluded.description, how_it_works = excluded.how_it_works, tutorial = excluded.tutorial,
              terms = excluded.terms, rewards = excluded.rewards, verified = excluded.verified,
              affiliate_confirmed = excluded.affiliate_confirmed, accent = excluded.accent, active = excluded.active,
              sort = excluded.sort, updated_at = excluded.updated_at`,
           id,
-          platform,
-          name,
-          url,
-          String(body.tagline ?? "").slice(0, 160) || null,
-          String(body.description ?? "").slice(0, 1200) || null,
-          String(body.howItWorks ?? "").slice(0, 1200) || null,
-          JSON.stringify(tutorial),
-          String(body.terms ?? "").slice(0, 800) || null,
-          String(body.rewards ?? "").slice(0, 300) || null,
-          body.verified === true ? 1 : 0,
-          body.affiliateConfirmed === true ? 1 : 0,
-          String(body.accent ?? "gold").slice(0, 20),
-          body.active === false ? 0 : 1,
-          numberFrom(body.sort, 100, 0, 9999),
+          row.platform,
+          row.name,
+          row.url,
+          row.category,
+          row.tagline,
+          row.description,
+          row.howItWorks,
+          row.tutorial,
+          row.terms,
+          row.rewards,
+          row.verified,
+          row.affiliateConfirmed,
+          row.accent,
+          row.active,
+          row.sort,
           new Date().toISOString(),
         );
-        audit(user.id, "admin.upsert_referral", id, { platform, name }, ip);
+        audit(user.id, "admin.upsert_referral", id, { platform: row.platform, name: row.name, category: row.category }, ip);
         return jsonOk({ id });
       }
 
