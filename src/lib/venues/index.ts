@@ -1,6 +1,7 @@
 import { coinbase } from "./coinbase";
 import { bybit } from "./bybit";
 import { kraken } from "./kraken";
+import { okx } from "./okx";
 import type { VenueAdapter } from "./types";
 
 /** Venues with a public, unauthenticated order book. Extend this map to add a venue. */
@@ -8,4 +9,5 @@ export const ADAPTERS: Record<string, VenueAdapter> = {
   [kraken.id]: kraken,
   [coinbase.id]: coinbase,
   [bybit.id]: bybit,
+  [okx.id]: okx,
 };
